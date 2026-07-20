@@ -1,0 +1,98 @@
+{
+  "_readme": [
+    "SHIP MANIFEST — the last line of defense before anything is packaged.",
+    "Adrian reviews this file before every cut. Two sections:",
+    "",
+    "rules: prefix rules over maya_tools/ paths. Anything matching a",
+    "  ship:false rule is EXCLUDED from the free zip (deepest matching",
+    "  rule wins). Everything else ships. Every rule carries a note",
+    "  saying why, so a future reader never has to guess.",
+    "",
+    "known_dirs: the roll-call. Every directory (top level and one level",
+    "  down) under maya_tools/ that contains files must be listed here.",
+    "  package_release FAILS LOUDLY if a directory exists on disk that",
+    "  this list does not acknowledge — a new tool cannot slip into the",
+    "  zip without being ruled here first.",
+    "",
+    "This manifest governs DIRECTORIES. File-level excludes",
+    "(_EXCLUDE_MAYA_TOOLS_FILES), _dev/ folders at any depth, and the",
+    "paid-pack boundary (paid_manifest.json) are enforced separately by",
+    "package_release.py."
+  ],
+  "rules": {
+    "animation/icons": {
+      "ship": false,
+      "note": "2017 Animation Toolbox registry artwork (icons/icon.png); the registry system is long gone (Adrian 2026-07-19)"
+    },
+    "pipeline": {
+      "ship": false,
+      "note": "rigged_model_updater: docstrings use personal asset names; not on the launch include list"
+    },
+    "framework/installer": {
+      "ship": false,
+      "note": "ML pip-deps step; DemBones-only consumer, ships with the DemBones add-on package"
+    },
+    "skinning/dem_bones_bake": {
+      "ship": false,
+      "note": "DemBones Bake ships as a separate add-on package (Adrian 2026-07-19), like AutoSkin's model distribution"
+    },
+    "skinning/auto_skin": {
+      "ship": false,
+      "note": "RETIRED (replaced by AutoSkin at FS 3bc8e9d); only a __pycache__ ghost remains on dev disks"
+    },
+    "skinning/bbw_skin": {
+      "ship": false,
+      "note": "RETIRED with the old ksAutoSkin; only a __pycache__ ghost remains on dev disks"
+    },
+    "skinning/unirig_export": {
+      "ship": false,
+      "note": "Dead code, zero entry points, superseded by AutoSkin (t29); cut before public"
+    }
+  },
+  "known_dirs": [
+    "_vendor",
+    "_vendor/yaml",
+    "animation",
+    "animation/anim_helpers",
+    "animation/anim_library",
+    "animation/icons",
+    "animation/pose_library",
+    "docs",
+    "docs/assistant",
+    "docs/components",
+    "docs/media",
+    "docs/tools",
+    "export",
+    "framework",
+    "framework/hotkeys",
+    "framework/installer",
+    "framework/menu",
+    "framework/project_configs",
+    "framework/renamer_tools",
+    "framework/scene_cleanup",
+    "framework/shelves",
+    "framework/toolbar",
+    "pipeline",
+    "pipeline/rigged_model_updater",
+    "rigging",
+    "rigging/curve_o_matic",
+    "rigging/fabricator",
+    "rigging/joint_orient",
+    "scene_batch",
+    "skeleton",
+    "skeleton/joint_mirror",
+    "skeleton/skeleton_io",
+    "skills",
+    "skills/fabricator-assistant",
+    "skinning",
+    "skinning/auto_skin",
+    "skinning/autoskin",
+    "skinning/bbw_skin",
+    "skinning/dem_bones_bake",
+    "skinning/skin_io",
+    "skinning/unirig_export",
+    "utils",
+    "utils/maya",
+    "utils/qt"
+  ]
+}

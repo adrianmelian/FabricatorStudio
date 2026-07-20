@@ -1,0 +1,58 @@
+incrementalSave/
+*.exr
+*.mtl
+*.swatches
+*.swatch
+*.obj
+*.png
+*.fbx
+*.spp
+*.psd
+*/ConceptArt/*
+*.pyc
+__pycache__/
+.claude/
+*.code-workspace
+icons/_concepts/
+Branding/
+
+# Shelf button icons — un-ignore the actual runtime PNGs the shelf JSON
+# files reference (see maya_tools/framework/shelves/shelf_data/*.json).
+# These were caught by the blanket *.png rule above and silently never
+# shipped in any package/install (found via CP3 — "no icons showed up
+# anywhere"). .psd source files stay ignored (not needed at runtime,
+# working files only). icons/_concepts/ (line 16 above) is a
+# directory-level exclusion that already wins over this file-level
+# negation for anything under it — git doesn't descend into an excluded
+# directory to re-evaluate later patterns, so no extra rule is needed
+# to keep _concepts/*.png ignored; verified with `git check-ignore`.
+!icons/*.png
+
+# Private Fabricator templates — stay on disk, generic copies are tracked instead
+maya_tools/rigging/fabricator/templates/Michael.blueprint.yaml
+maya_tools/rigging/fabricator/templates/Dybbuk.blueprint.yaml
+
+# Internal-only trees — stay on disk, excluded from the public tool package
+# (anchored to repo root: maya_tools/docs ships and commits normally)
+/docs/
+3D/
+
+# Packaged release output (package_release.py) — rebuildable, not tracked
+build/
+
+# WIP rig sources (Adrian): not tracked
+rigs/
+
+# Scratch diagnostic scripts from live debugging sessions — stay on disk
+workspace/
+
+# fabricator-mcp build artifacts (publish-readiness check output) — rebuildable
+fabricator-mcp/dist_check/
+
+# Adrian's private Archangel project config — stays on his disk, never public.
+# The toolset does not depend on it: every live-code reference is a comment.
+maya_tools/framework/project_configs/archangel/
+
+# Unzipped install-test artifact (package_release.py output, extracted here to
+# test the installer). Build output, never source. 22MB of duplicated tree.
+fabricator_studio/

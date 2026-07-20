@@ -1,0 +1,349 @@
+{
+  "name": "fsAnim",
+  "buttons": [
+    {
+      "type": "button",
+      "label": "Project Setup",
+      "tooltip": "Project Setup - right-click for scene settings",
+      "image": "fs_settings_tools.png",
+      "command": "import importlib; import maya_tools.framework.project_setup_ui as m; importlib.reload(m); m.ProjectSetupUI.show_window()",
+      "popup": [
+        {"type": "item", "label": "Project Setup",  "command": "import importlib; import maya_tools.framework.project_setup_ui as m; importlib.reload(m); m.ProjectSetupUI.show_window()"},
+        {"type": "divider"},
+        {"type": "item", "label": "Fix Camera",     "command": "import maya.cmds as cmds\nfor cam in ('perspShape', 'frontShape', 'sideShape', 'topShape'):\n    if cmds.objExists(cam):\n        cmds.setAttr(f'{cam}.nearClipPlane', 1.0)\n        cmds.setAttr(f'{cam}.farClipPlane', 1000000.0)"},
+        {"type": "divider"},
+        {"type": "item", "label": "Preferences",    "command": "import maya.cmds as cmds; cmds.PreferencesWindow()"},
+        {"type": "item", "label": "Plugin Manager", "command": "import maya.cmds as cmds; cmds.PluginManager()"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Save Scene",
+      "tooltip": "Save Scene - right-click for more file operations",
+      "image": "fs_save_tools.png",
+      "command": "import maya.cmds as cmds; cmds.SaveScene()",
+      "popup": [
+        {"type": "item", "label": "Save Scene",       "command": "import maya.cmds as cmds; cmds.SaveScene()"},
+        {"type": "item", "label": "Save Scene As...", "command": "import maya.cmds as cmds; cmds.SaveSceneAs()"},
+        {"type": "divider"},
+        {"type": "item", "label": "Load Scene",       "command": "import maya.cmds as cmds; cmds.OpenScene()"},
+        {"type": "item", "label": "Reload Scene",     "command": "import maya.cmds as cmds\nf = cmds.file(q=True, sn=True)\ncmds.file(f, open=True, force=True) if f else cmds.warning('Scene not saved to disk')"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Load Scene",
+      "tooltip": "Load Scene rooted at current scene's directory - right-click for Source<->Rig",
+      "image": "fs_load_tools.png",
+      "command": "import importlib; import maya_tools.framework.scene_loader as s; importlib.reload(s); s.open_scene_in_current_dir()",
+      "popup": [
+        {"type": "item", "label": "Load Scene",          "command": "import importlib; import maya_tools.framework.scene_loader as s; importlib.reload(s); s.open_scene_in_current_dir()"},
+        {"type": "divider"},
+        {"type": "item", "label": "Open Source <-> Rig", "command": "import importlib; import maya_tools.framework.scene_loader as s; importlib.reload(s); s.open_source_rig_sibling()"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Scene Batch",
+      "tooltip": "Open the Scene Batch tool. Runs Python, export, and save across multiple scenes.",
+      "image": "fs_scene_batch.png",
+      "command": "import importlib; from maya_tools.scene_batch import scene_batch_app as a, scene_batch_ui as m; importlib.reload(a); importlib.reload(m); m.SceneBatchWindow.show_window()"
+    },
+    {
+      "type": "button",
+      "label": "FBX Export",
+      "tooltip": "Export selected (one-button) - right-click for Exporter UI",
+      "image": "fs_export_tools.png",
+      "command": "import importlib; import maya_tools.export.exporter_app as a; importlib.reload(a); a.export_one_button()",
+      "popup": [
+        {"type": "item", "label": "Export Selection (one-button)", "command": "import importlib; import maya_tools.export.exporter_app as a; importlib.reload(a); a.export_one_button()"},
+        {"type": "item", "label": "Open Exporter UI",              "command": "import importlib; import maya_tools.export.export_core as c; import maya_tools.export.exporter_app as a; import maya_tools.export.exporter_ui as m; importlib.reload(c); importlib.reload(a); importlib.reload(m); m.ExporterWindow.show_window()"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Anim Export",
+      "tooltip": "Open Animation Exporter UI - right-click for Export All Clips",
+      "image": "fs_export_anim.png",
+      "command": "import importlib; import maya_tools.export.export_core as c; import maya_tools.export.anim_core as ac; import maya_tools.export.anim_pipeline as ap; import maya_tools.export.anim_app as a; import maya_tools.export.anim_ui as m; importlib.reload(c); importlib.reload(ac); importlib.reload(ap); importlib.reload(a); importlib.reload(m); m.AnimExporterWindow.show_window()",
+      "popup": [
+        {"type": "item", "label": "Open Animation Exporter",     "command": "import importlib; import maya_tools.export.export_core as c; import maya_tools.export.anim_core as ac; import maya_tools.export.anim_pipeline as ap; import maya_tools.export.anim_app as a; import maya_tools.export.anim_ui as m; importlib.reload(c); importlib.reload(ac); importlib.reload(ap); importlib.reload(a); importlib.reload(m); m.AnimExporterWindow.show_window()"},
+        {"type": "item", "label": "Export All Animation Clips",  "command": "import importlib; import maya_tools.export.export_core as c; import maya_tools.export.anim_core as ac; import maya_tools.export.anim_pipeline as ap; import maya_tools.export.anim_app as a; importlib.reload(c); importlib.reload(ac); importlib.reload(ap); importlib.reload(a); a.export_all_clips()"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Update Rigged Model",
+      "tooltip": "Update Rigged Model. Source->Rig and Rig->Source",
+      "image": "fs_update_rigged_model.png",
+      "command": "import importlib; import maya_tools.pipeline.rigged_model_updater.rigged_model_updater_app as a; importlib.reload(a); a.update_rigged_model()"
+    },
+    {"type": "separator"},
+    {
+      "type": "button",
+      "label": "Clipboard",
+      "tooltip": "Copy selected names to clipboard - right-click for more",
+      "image": "fs_clipboard_tools.png",
+      "command": "from PySide6.QtWidgets import QApplication\nimport maya.cmds as cmds\nQApplication.clipboard().setText('\\n'.join(cmds.ls(sl=True) or []))",
+      "popup": [
+        {"type": "item", "label": "Copy Selected",        "command": "from PySide6.QtWidgets import QApplication\nimport maya.cmds as cmds\nQApplication.clipboard().setText('\\n'.join(cmds.ls(sl=True) or []))"},
+        {"type": "item", "label": "Copy Scene Name",      "command": "from PySide6.QtWidgets import QApplication\nimport maya.cmds as cmds, os\nscene = cmds.file(q=True, sn=True)\nQApplication.clipboard().setText(os.path.splitext(os.path.basename(scene))[0] if scene else '')"},
+        {"type": "item", "label": "Copy Scene Directory", "command": "from PySide6.QtWidgets import QApplication\nimport maya.cmds as cmds, os\nscene = cmds.file(q=True, sn=True)\nQApplication.clipboard().setText(os.path.dirname(scene) if scene else '')"},
+        {"type": "item", "label": "Copy Scene Full Path", "command": "from PySide6.QtWidgets import QApplication\nimport maya.cmds as cmds\nQApplication.clipboard().setText(cmds.file(q=True, sn=True) or '')"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Scene Cleanup",
+      "tooltip": "Select Mesh Artifacts (Non-Manifold / Lamina / Zero-Area) - right-click for Fix Mesh Artifacts",
+      "image": "fs_cleaning_tools.png",
+      "command": "import importlib; import maya_tools.framework.scene_cleanup.scene_cleanup_app as a; importlib.reload(a); a.select_mesh_artifacts()",
+      "popup": [
+        {"type": "item",
+         "label": "Select Mesh Artifacts (Non-Manifold / Lamina / Zero-Area)",
+         "command": "import importlib; import maya_tools.framework.scene_cleanup.scene_cleanup_app as a; importlib.reload(a); a.select_mesh_artifacts()"},
+        {"type": "item",
+         "label": "Fix Mesh Artifacts (Non-Manifold / Lamina / Zero-Area)",
+         "command": "import importlib; import maya_tools.framework.scene_cleanup.scene_cleanup_app as a; importlib.reload(a); a.fix_mesh_artifacts()"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Selection Helpers",
+      "tooltip": "Selection Tools",
+      "image": "fs_selection_tools.png",
+      "command": "",
+      "popup": [
+        {"type": "item", "label": "Select all child joints from selection",       "command": "from maya_tools.framework.utilities import select_child_joints; select_child_joints()"},
+        {"type": "item", "label": "Select all child meshes from selection",       "command": "from maya_tools.framework.utilities import select_child_meshes; select_child_meshes()"},
+        {"type": "divider"},
+        {"type": "item", "label": "Select joints influencing selected",          "command": "import maya.cmds as cmds\nsel = cmds.ls(sl=True)\nif sel:\n    hist = cmds.listHistory(sel, pruneDagObjects=True) or []\n    scs = cmds.ls(hist, type='skinCluster')\n    joints = list({j for sc in scs for j in (cmds.skinCluster(sc, q=True, influence=True) or [])})\n    cmds.select(joints) if joints else cmds.warning('No skinCluster found on selection')\nelse:\n    cmds.warning('Nothing selected')"},
+        {"type": "item", "label": "Select objects influenced by selected joints", "command": "import maya.cmds as cmds\njoints = cmds.ls(sl=True, type='joint')\nif joints:\n    meshes = list({g for j in joints for sc in (cmds.listConnections(j, type='skinCluster') or []) for g in (cmds.skinCluster(sc, q=True, geometry=True) or [])})\n    cmds.select(meshes) if meshes else cmds.warning('No skin bindings found')\nelse:\n    cmds.warning('Select joints first')"},
+        {"type": "item", "label": "Select unskinned meshes",                     "command": "import maya.cmds as cmds\nfrom maya_tools.framework import utilities as u\nmeshes = u.scene_mesh_shapes()\nunskinned = [cmds.listRelatives(m, parent=True, fullPath=True)[0] for m in meshes if not cmds.ls(cmds.listHistory(m, pruneDagObjects=True) or [], type='skinCluster')]\ncmds.select(unskinned) if unskinned else cmds.inViewMessage(msg='All meshes are skinned', pos='midCenter', fade=True)"},
+        {"type": "item", "label": "Create locator at center of selected",        "command": "import maya.cmds as cmds\nsel = cmds.ls(sl=True, fl=True)\nif sel:\n    pts = [cmds.pointPosition(s, w=True) for s in sel]\n    n = len(pts)\n    loc = cmds.spaceLocator()[0]\n    cmds.move(sum(p[0] for p in pts)/n, sum(p[1] for p in pts)/n, sum(p[2] for p in pts)/n, loc, ws=True)\nelse:\n    cmds.warning('Nothing selected')"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Snap A to B",
+      "tooltip": "Snap source(s) to last selection (translate). Trailing component selection (edge loop, faces, verts, CVs) snaps source(s) to the components' centroid.",
+      "image": "fs_snap_tools.png",
+      "command": "import maya_tools.framework.utilities as u; u.snap_a_to_b(orientation=False)"
+    },
+    {
+      "type": "button",
+      "label": "Locator at Selection",
+      "tooltip": "Create a locator snapped to the current selection. Trailing components → locator at their centroid; transforms → locator at the last selected transform (translate only).",
+      "image": "fs_locator_at_selection.png",
+      "command": "import maya_tools.framework.utilities as u; u.create_locator_at_selection()"
+    },
+    {"type": "separator"},
+    {
+      "type": "button",
+      "label": "Fabricator",
+      "tooltip": "Fabricator — blueprint-driven modular rigging",
+      "image": "fs_fabricator_shelf.png",
+      "command": "import importlib; from maya_tools.rigging.fabricator.ui import fs_window; importlib.reload(fs_window); fs_window.FSWindow.show_window()"
+    },
+    {
+      "type": "button",
+      "label": "CtrlEditor",
+      "tooltip": "CtrlEditor — control curve library and creator",
+      "image": "fs_curve_tools.png",
+      "command": "import importlib; import maya_tools.rigging.curve_o_matic.curve_o_matic_app as a; import maya_tools.rigging.curve_o_matic.curve_o_matic_ui as m; importlib.reload(a); importlib.reload(m); m.CurveOMaticWindow.show_window()"
+    },
+    {"type": "separator"},
+    {
+      "type": "button",
+      "label": "Skeleton IO",
+      "tooltip": "Skeleton IO - right-click for all skeleton options",
+      "image": "fs_joint_tools.png",
+      "command": "import importlib; import maya_tools.skeleton.skeleton_io.skeleton_io_app as a; import maya_tools.skeleton.skeleton_io.skeleton_io_ui as m; importlib.reload(a); importlib.reload(m); m.SkeletonIOWindow.show_window()",
+      "popup": [
+        {"type": "item", "label": "Skeleton IO",       "command": "import importlib; import maya_tools.skeleton.skeleton_io.skeleton_io_app as a; import maya_tools.skeleton.skeleton_io.skeleton_io_ui as m; importlib.reload(a); importlib.reload(m); m.SkeletonIOWindow.show_window()"},
+        {"type": "divider"},
+        {"type": "item", "label": "Joint Aimer", "command": "import importlib; import maya_tools.rigging.joint_orient.joint_orient_app as a; import maya_tools.rigging.joint_orient.joint_orient_ui as m; importlib.reload(a); importlib.reload(m); m.JointOrientWindow.show_window()"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Joint Aimer",
+      "tooltip": "Joint Orient Tool - right-click for all skeleton options",
+      "image": "orientation_tools.png",
+      "command": "import importlib; import maya_tools.rigging.joint_orient.joint_orient_app as a; import maya_tools.rigging.joint_orient.joint_orient_ui as m; importlib.reload(a); importlib.reload(m); m.JointOrientWindow.show_window()",
+      "popup": [
+        {"type": "item", "label": "Skeleton IO",       "command": "import importlib; import maya_tools.skeleton.skeleton_io.skeleton_io_app as a; import maya_tools.skeleton.skeleton_io.skeleton_io_ui as m; importlib.reload(a); importlib.reload(m); m.SkeletonIOWindow.show_window()"},
+        {"type": "divider"},
+        {"type": "item", "label": "Joint Aimer", "command": "import importlib; import maya_tools.rigging.joint_orient.joint_orient_app as a; import maya_tools.rigging.joint_orient.joint_orient_ui as m; importlib.reload(a); importlib.reload(m); m.JointOrientWindow.show_window()"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Insert Joints Between",
+      "tooltip": "Insert Joints Between: Select 2 joints (one a descendant of the other), then insert N joints evenly between them",
+      "image": "fs_insert_joints.png",
+      "command": "import importlib; from maya_tools.skeleton import skeleton_utils as m; importlib.reload(m); m.insert_joints_between_selection()"
+    },
+    {
+      "type": "button",
+      "label": "Mirror Joints",
+      "tooltip": "Mirror selected joints + Mirror Constraint. Names flip on side token (L_/R_, _l/_r, etc.)",
+      "image": "fs_mirror_joints.png",
+      "command": "import importlib; from maya_tools.skeleton.joint_mirror import joint_mirror_app as m; importlib.reload(m); m.mirror_joints()",
+      "popup": [
+        {"type": "item", "label": "Disconnect Mirror Constraint", "command": "import importlib; from maya_tools.skeleton.joint_mirror import joint_mirror_app as m; importlib.reload(m); m.disconnect_mirror()"}
+      ]
+    },
+    {"type": "separator"},
+    {
+      "type": "button",
+      "label": "Skin IO",
+      "tooltip": "Skin IO - right-click for quick temp save/load",
+      "image": "fs_skin_tools.png",
+      "command": "import importlib; import maya_tools.skinning.skin_io.skin_io_app as a; import maya_tools.skinning.skin_io.skin_io_ui as m; importlib.reload(a); importlib.reload(m); m.SkinIOWindow.show_window()",
+      "popup": [
+        {"type": "item", "label": "Skin IO", "command": "import importlib; import maya_tools.skinning.skin_io.skin_io_app as a; import maya_tools.skinning.skin_io.skin_io_ui as m; importlib.reload(a); importlib.reload(m); m.SkinIOWindow.show_window()"},
+        {"type": "divider"},
+        {"type": "item", "label": "Save Temp Skin", "command": "import maya.cmds as cmds, os, importlib\nimport maya_tools.skinning.skin_io.skin_io_app as a; importlib.reload(a)\npath = os.path.join(cmds.internalVar(userAppDir=True), 'am_skin_temp.json')\nmeshes = [s for s in (cmds.ls(sl=True, type='transform') or []) if cmds.listRelatives(s, s=True, type='mesh', noIntermediate=True)]\nif not meshes:\n    cmds.warning('Select at least one mesh to save temp skin.')\nelse:\n    a.save_skin_from_meshes(meshes, path)\n    cmds.inViewMessage(msg='Saved temp skin from ' + str(len(meshes)) + ' mesh(es)', pos='midCenter', fade=True)"},
+        {"type": "item", "label": "Load Temp - Direct", "command": "import maya.cmds as cmds, os, importlib\nimport maya_tools.skinning.skin_io.skin_io_app as a; importlib.reload(a)\npath = os.path.join(cmds.internalVar(userAppDir=True), 'am_skin_temp.json')\nif not os.path.exists(path):\n    cmds.warning('No temp skin file found. Run Save Temp first.')\nelse:\n    meshes = [s for s in (cmds.ls(sl=True, type='transform') or []) if cmds.listRelatives(s, s=True, type='mesh', noIntermediate=True)]\n    if not meshes: cmds.warning('Select at least one mesh.')\n    else:\n        a.load_skin_to_meshes(meshes, path, mode='direct')\n        cmds.inViewMessage(msg='Loaded temp skin (direct) onto ' + str(len(meshes)) + ' mesh(es)', pos='midCenter', fade=True)"},
+        {"type": "item", "label": "Load Temp - Transfer", "command": "import maya.cmds as cmds, os, importlib\nimport maya_tools.skinning.skin_io.skin_io_app as a; importlib.reload(a)\npath = os.path.join(cmds.internalVar(userAppDir=True), 'am_skin_temp.json')\nif not os.path.exists(path):\n    cmds.warning('No temp skin file found. Run Save Temp first.')\nelse:\n    meshes = [s for s in (cmds.ls(sl=True, type='transform') or []) if cmds.listRelatives(s, s=True, type='mesh', noIntermediate=True)]\n    if not meshes: cmds.warning('Select at least one mesh.')\n    else:\n        a.load_skin_to_meshes(meshes, path, mode='transfer')\n        cmds.inViewMessage(msg='Loaded temp skin (transfer) onto ' + str(len(meshes)) + ' mesh(es)', pos='midCenter', fade=True)"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "AutoSkin",
+      "tooltip": "AutoSkin — select your joints + mesh, press Bind Skin",
+      "image": "fs_autoskin.png",
+      "command": "from maya_tools.skinning.autoskin.autoskin_ui import AutoSkinWindow; AutoSkinWindow.show_window()"
+    },
+    {
+      "type": "button",
+      "label": "Skinning Tools",
+      "tooltip": "Paint Skin Weights - right-click for more",
+      "image": "fs_paint_weights.png",
+      "command": "import maya.cmds as cmds\nsel = cmds.ls(sl=True)\nif sel:\n    verts = cmds.polyListComponentConversion(sel, toVertex=True)\n    if verts: cmds.select(verts, r=True)\ncmds.ArtPaintSkinWeightsToolOptions()",
+      "popup": [
+        {"type": "item", "label": "Paint Skin Weights",  "command": "import maya.cmds as cmds\nsel = cmds.ls(sl=True)\nif sel:\n    verts = cmds.polyListComponentConversion(sel, toVertex=True)\n    if verts: cmds.select(verts, r=True)\ncmds.ArtPaintSkinWeightsToolOptions()"},
+        {"type": "item", "label": "Skin Weight Editor",  "command": "import maya.cmds as cmds; cmds.SkinWeightEditor()"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Combine Skinned",
+      "tooltip": "Combine selected skinned meshes, preserving exact weights - right-click to separate",
+      "image": "fs_combine_skinned.png",
+      "command": "import importlib; import maya_tools.skinning.combine_skinned as cs; importlib.reload(cs); cs.combine_skinned_meshes()",
+      "popup": [
+        {"type": "item", "label": "Combine Skinned Meshes", "command": "import importlib; import maya_tools.skinning.combine_skinned as cs; importlib.reload(cs); cs.combine_skinned_meshes()"},
+        {"type": "item", "label": "Separate Skinned Mesh",  "command": "import importlib; import maya_tools.skinning.combine_skinned as cs; importlib.reload(cs); cs.separate_skinned_mesh()"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Add Influence",
+      "tooltip": "Add Influence - right-click for Remove / Remove Unused",
+      "image": "fs_add_influence.png",
+      "command": "import maya.mel as mel; mel.eval('AddInfluenceOptions')",
+      "popup": [
+        {"type": "item", "label": "Add Influence",            "command": "import maya.mel as mel; mel.eval('AddInfluenceOptions')"},
+        {"type": "item", "label": "Remove Influence",         "command": "import maya.mel as mel; mel.eval('RemoveInfluence')"},
+        {"type": "divider"},
+        {"type": "item", "label": "Remove Unused Influences", "command": "import importlib\nfrom maya_tools.skinning import influence_cleanup\nimportlib.reload(influence_cleanup)\ninfluence_cleanup.remove_unused_from_selection_with_feedback()"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Skin Smoosh",
+      "tooltip": "Skin Smoosh - neighbor-average smooth on selected vertices (loads plugin on demand)",
+      "image": "fs_skin_smoosh.png",
+      "command": "import os\nimport maya.cmds as cmds\nfrom maya_tools import skinning\nplugin = 'skinSmoosh'\npath = os.path.join(os.path.dirname(skinning.__file__), 'skinSmoosh.py')\nif not cmds.pluginInfo(plugin, q=True, loaded=True):\n    cmds.loadPlugin(path)\ncmds.skinSmoosh()"
+    },
+    {
+      "type": "button",
+      "label": "Mirror Weights",
+      "tooltip": "Mirror skin weights +X to -X (YZ plane) - right-click to mirror -X to +X",
+      "image": "fs_mirror_weights.png",
+      "command": "import maya.cmds as cmds\nobj = (cmds.ls(sl=True, o=True) or [])[0:1]\nhist = cmds.listHistory(obj[0], pdo=True) if obj else []\nskins = cmds.ls(hist, type='skinCluster') or []\nif skins:\n    cmds.copySkinWeights(ss=skins[0], ds=skins[0], mirrorMode='YZ', surfaceAssociation='closestPoint', influenceAssociation=['oneToOne', 'oneToOne'], normalize=True)\n    cmds.inViewMessage(msg='Mirrored weights +X to -X', pos='midCenter', fade=True)",
+      "popup": [
+        {"type": "item", "label": "Mirror +X to -X", "command": "import maya.cmds as cmds\nobj = (cmds.ls(sl=True, o=True) or [])[0:1]\nhist = cmds.listHistory(obj[0], pdo=True) if obj else []\nskins = cmds.ls(hist, type='skinCluster') or []\nif skins:\n    cmds.copySkinWeights(ss=skins[0], ds=skins[0], mirrorMode='YZ', surfaceAssociation='closestPoint', influenceAssociation=['oneToOne', 'oneToOne'], normalize=True)\n    cmds.inViewMessage(msg='Mirrored weights +X to -X', pos='midCenter', fade=True)"},
+        {"type": "item", "label": "Mirror -X to +X", "command": "import maya.cmds as cmds\nobj = (cmds.ls(sl=True, o=True) or [])[0:1]\nhist = cmds.listHistory(obj[0], pdo=True) if obj else []\nskins = cmds.ls(hist, type='skinCluster') or []\nif skins:\n    cmds.copySkinWeights(ss=skins[0], ds=skins[0], mirrorMode='YZ', mirrorInverse=True, surfaceAssociation='closestPoint', influenceAssociation=['oneToOne', 'oneToOne'], normalize=True)\n    cmds.inViewMessage(msg='Mirrored weights -X to +X', pos='midCenter', fade=True)"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Copy Skin Weights",
+      "tooltip": "Record skin weights from selected verts (single vert = exact, multi = averaged)",
+      "image": "fs_copy_weights.png",
+      "command": "import importlib; import maya_tools.skinning.weight_clipboard as wc; importlib.reload(wc); wc.record_weights()"
+    },
+    {
+      "type": "button",
+      "label": "Paste Skin Weights",
+      "tooltip": "Paste recorded weights to selected verts (missing influences are auto-selected for adding)",
+      "image": "fs_paste_weights.png",
+      "command": "import importlib; import maya_tools.skinning.weight_clipboard as wc; importlib.reload(wc); wc.paste_weights()"
+    },
+    {
+      "type": "button",
+      "label": "Average Skin Weights",
+      "tooltip": "Average selected verts' weights and apply back to all selected",
+      "image": "fs_average_weights.png",
+      "command": "import importlib; import maya_tools.skinning.weight_clipboard as wc; importlib.reload(wc); wc.average_weights()"
+    },
+    {"type": "separator"},
+    {
+      "type": "button",
+      "label": "Pose Studio",
+      "tooltip": "Pose Studio v1 (Fabricator) - right-click for more animation tools",
+      "image": "fs_pose_library.png",
+      "command": "import importlib; from maya_tools.animation.pose_library import app as a, ui as m; importlib.reload(a); importlib.reload(m); m.PoseLibraryWindow.show_window()",
+      "popup": [
+        {"type": "item", "label": "Pose Studio",            "command": "import importlib; from maya_tools.animation.pose_library import app as a, ui as m; importlib.reload(a); importlib.reload(m); m.PoseLibraryWindow.show_window()"},
+        {"type": "item", "label": "Animation Studio",            "command": "import importlib; from maya_tools.animation.anim_library import app as a, ui as m; importlib.reload(a); importlib.reload(m); m.AnimLibraryWindow.show_window()"},
+        {"type": "item", "label": "Reverse Animation Curve", "command": "import maya.mel as mel; mel.eval('scaleKey -iub false -timeScale -1 -animation keys;')"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Animation Studio",
+      "tooltip": "Animation Studio — save and load animation clips on the active rig",
+      "image": "fs_anim_library.png",
+      "command": "import importlib; from maya_tools.animation.anim_library import app as a, ui as m; importlib.reload(a); importlib.reload(m); m.AnimLibraryWindow.show_window()"
+    },
+    {
+      "type": "button",
+      "label": "Select All Controls",
+      "tooltip": "Select All Controls",
+      "image": "fs_select_all_ctrls.png",
+      "command": "import importlib; import maya_tools.animation.anim_helpers.anim_helpers_app as a; importlib.reload(a); a.select_all_controls()"
+    },
+    {
+      "type": "button",
+      "label": "Select Opposite Controls",
+      "tooltip": "Select Opposite Controls. Replace selection with each ctrl's mirror counterpart (center ctrls are dropped)",
+      "image": "fs_select_opposite.png",
+      "command": "import importlib; import maya_tools.animation.anim_helpers.anim_helpers_app as a; importlib.reload(a); a.select_opposite_controls()"
+    },
+    {
+      "type": "button",
+      "label": "Mirror Pose",
+      "tooltip": "Mirror Pose.",
+      "image": "fs_mirror_pose.png",
+      "command": "import importlib; import maya_tools.animation.anim_helpers.anim_helpers_app as a; importlib.reload(a); a.mirror_pose()"
+    },
+    {
+      "type": "button",
+      "label": "Mirror Selected",
+      "tooltip": "Mirror Selected",
+      "image": "fs_mirror_selected.png",
+      "command": "import importlib; import maya_tools.animation.anim_helpers.anim_helpers_app as a; importlib.reload(a); a.mirror_selected_controls()"
+    },
+    {
+      "type": "button",
+      "label": "Reverse Keys",
+      "tooltip": "Reverse keys selected in the Graph Editor. Scales by -1 in time around the selection's midpoint — first key becomes last and vice versa.",
+      "image": "fs_reverse_animation.png",
+      "command": "import importlib; import maya_tools.animation.anim_helpers.anim_helpers_app as a; importlib.reload(a); a.reverse_selected_keys()"
+    }
+  ]
+}

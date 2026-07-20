@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fabricator-mcp"
+version = "0.1.0"
+description = "MCP server bridging AI clients to the read-only Fabricator/Maya bridge."
+readme = "README.md"
+requires-python = ">=3.10"
+# License re-ruled 2026-07-18: BUSL-1.1 (free under $2M revenue) on the whole toolset;
+# fabricator-mcp is a free/open connector and matches it.
+license = "BUSL-1.1"
+license-files = ["LICENSE"]
+dependencies = ["mcp>=1.28"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/adrianmelian/FabricatorStudio/tree/main/fabricator-mcp"
+Repository = "https://github.com/adrianmelian/FabricatorStudio"
+Issues = "https://github.com/adrianmelian/FabricatorStudio/issues"
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+fabricator-mcp = "fabricator_mcp.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

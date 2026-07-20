@@ -1,0 +1,37 @@
+{
+  "mindmeld_icon": {
+    "meta": {
+      "spec_version": "1.0.0",
+      "title": "Fabricator shelf icon — cute robot with FAB chest panel",
+      "tool_name": "ksFabricator"
+    },
+    "subject": {
+      "type": "robot",
+      "details": "small humanoid, friendly LED eyes, single antenna, blocky chest, rounded limbs",
+      "pose": "standing facing forward"
+    },
+    "branding": [
+      {
+        "type": "chest_panel",
+        "content": "FAB",
+        "treatment": "LED segment display",
+        "color_token": "live"
+      }
+    ],
+    "style": {
+      "aesthetic": "flat vector icon, minimalist, iconographic, 3-color design, high contrast, isolated silhouette, single icon shape, empty void background, no framing",
+      "outline": "thick uniform outlines, solid color fills, no shading, no gradient, no dither",
+      "extra_tokens": []
+    },
+    "palette": {
+      "structural": "#E8E0D0",
+      "live": "#7CFFB2",
+      "heat": "#FF7A3D",
+      "background": "#000000"
+    },
+    "constraints": {
+      "exclude": ["humans", "photorealistic", "3D render"],
+      "extra_negative": []
+    }
+  }
+}

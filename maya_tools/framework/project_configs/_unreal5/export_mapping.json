@@ -1,0 +1,143 @@
+{
+  "schema_version": 2,
+  "_note": "path_patterns / anim_path_patterns / prefixes are GENERATED from asset_classes by the project setup tool. Edit asset_classes and re-save; do not hand-edit the generated keys.",
+  "name": "Unreal5",
+  "asset_classes": [
+    {
+      "id": "character",
+      "label": "Character",
+      "export_types": [
+        "skeletal_mesh",
+        "static_mesh"
+      ],
+      "source_dir": "SourceArt/Characters/{name}",
+      "dest_dir": "Game/Content/Characters/{name}",
+      "anim": {
+        "gameplay": "Game/Content/Characters/{name}/Animations",
+        "cinematic": ""
+      }
+    },
+    {
+      "id": "environment",
+      "label": "Environment",
+      "export_types": [
+        "static_mesh"
+      ],
+      "source_dir": "SourceArt/Environments/{path}/Source",
+      "dest_dir": "Game/Content/Environment/{path}/Models",
+      "anim": {
+        "gameplay": "",
+        "cinematic": ""
+      }
+    },
+    {
+      "id": "ui",
+      "label": "UI",
+      "export_types": [
+        "static_mesh"
+      ],
+      "source_dir": "SourceArt/UI/{path}/Source",
+      "dest_dir": "Game/Content/UI/{path}/Models",
+      "anim": {
+        "gameplay": "",
+        "cinematic": ""
+      }
+    }
+  ],
+  "path_patterns": [
+    {
+      "match": "SourceArt/Characters/(?P<name>[^/]+)/.*\\.ma$",
+      "dest": "Game/Content/Characters/{name}"
+    },
+    {
+      "match": "SourceArt/Environments/(?P<path>.+)/Source/[^/]+\\.ma$",
+      "dest": "Game/Content/Environment/{path}/Models"
+    },
+    {
+      "match": "SourceArt/UI/(?P<path>.+)/Source/[^/]+\\.ma$",
+      "dest": "Game/Content/UI/{path}/Models"
+    }
+  ],
+  "anim_path_patterns": {
+    "gameplay": [
+      {
+        "match": "SourceArt/Characters/(?P<name>[^/]+)/.*\\.ma$",
+        "dest": "Game/Content/Characters/{name}/Animations"
+      }
+    ],
+    "cinematic": []
+  },
+  "prefixes": {
+    "static_mesh": "SM_",
+    "skeletal_mesh": "SK_"
+  },
+  "anim_prefix": "A_",
+  "pose_library_subpath": "SourceArt/Characters/_pose_library",
+  "anim_library_subpath": "SourceArt/Characters/_anim_library",
+  "mesh_group_name": "",
+  "engine_up_axis": "z",
+  "fbx_presets": {
+    "static_mesh": {
+      "FBXExportSkins": false,
+      "FBXExportSkeletonDefinitions": false,
+      "FBXExportSmoothingGroups": true,
+      "FBXExportTangents": true,
+      "FBXExportSmoothMesh": true,
+      "FBXExportTriangulate": false,
+      "FBXExportShapes": true,
+      "FBXExportInstances": false,
+      "FBXExportReferencedAssetsContent": false,
+      "FBXExportInputConnections": false,
+      "FBXExportConstraints": false,
+      "FBXExportCameras": false,
+      "FBXExportLights": false,
+      "FBXExportEmbeddedTextures": false,
+      "FBXExportUseSceneName": false,
+      "FBXExportInAscii": false,
+      "FBXExportFileVersion": "FBX202000",
+      "FBXExportUpAxis": "z"
+    },
+    "skeletal_mesh": {
+      "FBXExportSkins": true,
+      "FBXExportSkeletonDefinitions": true,
+      "FBXExportShapes": true,
+      "FBXExportSmoothingGroups": true,
+      "FBXExportTangents": true,
+      "FBXExportSmoothMesh": true,
+      "FBXExportTriangulate": false,
+      "FBXExportInstances": false,
+      "FBXExportReferencedAssetsContent": false,
+      "FBXExportInputConnections": false,
+      "FBXExportConstraints": false,
+      "FBXExportCameras": false,
+      "FBXExportLights": false,
+      "FBXExportEmbeddedTextures": false,
+      "FBXExportUseSceneName": false,
+      "FBXExportBakeComplexAnimation": false,
+      "FBXExportInAscii": false,
+      "FBXExportFileVersion": "FBX202000",
+      "FBXExportUpAxis": "z"
+    },
+    "animation": {
+      "FBXExportSkins": false,
+      "FBXExportSkeletonDefinitions": true,
+      "FBXExportShapes": false,
+      "FBXExportSmoothingGroups": false,
+      "FBXExportTangents": false,
+      "FBXExportSmoothMesh": false,
+      "FBXExportTriangulate": false,
+      "FBXExportInstances": false,
+      "FBXExportReferencedAssetsContent": false,
+      "FBXExportInputConnections": false,
+      "FBXExportConstraints": false,
+      "FBXExportCameras": false,
+      "FBXExportLights": false,
+      "FBXExportEmbeddedTextures": false,
+      "FBXExportUseSceneName": false,
+      "FBXExportBakeComplexAnimation": true,
+      "FBXExportInAscii": false,
+      "FBXExportFileVersion": "FBX202000",
+      "FBXExportUpAxis": "z"
+    }
+  }
+}

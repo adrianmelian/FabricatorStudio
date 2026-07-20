@@ -1,0 +1,48 @@
+FabricatorStudio Advanced Ribbon Pack
+Commercial License
+
+Copyright 2026 Adrian Melian (FabricatorStudio). All rights reserved.
+
+This license covers the Advanced Ribbon Pack modules and the files distributed
+in the FabricatorRibbonPack package (the "Software"). The Software is sold, not
+given away, and is NOT covered by the Business Source License 1.1 that applies
+to the free FabricatorStudio core.
+
+1. GRANT
+   On purchase, you (the individual or organization named on the order) receive
+   a non-exclusive, non-transferable, perpetual license to install and use the
+   Software on any project you work on, on the machines you use for that work.
+   The Software is delivered as readable Python source; you may read and modify
+   it for your own use.
+
+2. RESTRICTIONS
+   You may not redistribute, resell, sublicense, publish, or otherwise share the
+   Software or its source, in whole or in part, modified or unmodified, with any
+   third party, including as part of any public or private code repository,
+   asset pack, or plugin bundle. You may not use it to build a competing product
+   for distribution.
+
+   Rigs you build with the Software, and their exported output (skeletons, baked
+   animation, meshes), are yours to use and distribute freely. This license
+   restricts only the Software's own source files.
+
+3. SEATS
+   The license is per buyer. A studio or team license, if purchased, covers the
+   named organization and the artists working for it. Contact
+   adrian@fabricator.studio about team terms.
+
+4. UPDATES AND SUPPORT
+   Purchase includes updates within the version line you bought and best-effort
+   support. It is not a subscription; access to the files you received does not
+   expire.
+
+5. NO WARRANTY
+   The Software is provided "AS IS", without warranty of any kind, express or
+   implied, including but not limited to the warranties of merchantability and
+   fitness for a particular purpose. To the maximum extent permitted by law,
+   Adrian Melian is not liable for any damages arising from its use.
+
+6. GOVERNING LAW
+   This license is governed by the laws of the State of Colorado, USA.
+
+Questions: adrian@fabricator.studio

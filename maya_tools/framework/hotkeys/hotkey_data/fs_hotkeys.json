@@ -1,0 +1,333 @@
+{
+  "hotkeys": [
+    {
+      "key": "1", "ctrl": false, "shift": false, "alt": true,
+      "name": "show_joints",
+      "annotation": "Toggle joint visibility",
+      "language": "python",
+      "command": "from maya_tools.framework.utilities import toggle_joints; toggle_joints()"
+    },
+    {
+      "key": "2", "ctrl": false, "shift": false, "alt": true,
+      "name": "show_curves",
+      "annotation": "Toggle NURBS curve visibility",
+      "language": "python",
+      "command": "from maya_tools.framework.utilities import toggle_nurbs_curves; toggle_nurbs_curves()"
+    },
+    {
+      "key": "3", "ctrl": false, "shift": false, "alt": true,
+      "name": "show_polys",
+      "annotation": "Toggle geometry visibility",
+      "language": "python",
+      "command": "from maya_tools.framework.utilities import toggle_geometry; toggle_geometry()"
+    },
+    {
+      "key": "4", "ctrl": false, "shift": false, "alt": true,
+      "name": "show_grid",
+      "annotation": "Toggle grid visibility",
+      "language": "python",
+      "command": "from maya_tools.framework.utilities import toggle_grid; toggle_grid()"
+    },
+    {
+      "key": "5", "ctrl": false, "shift": false, "alt": true,
+      "name": "show_lights",
+      "annotation": "Toggle light visibility",
+      "language": "python",
+      "command": "from maya_tools.framework.utilities import toggle_lights; toggle_lights()"
+    },
+    {
+      "key": "6", "ctrl": false, "shift": false, "alt": true,
+      "name": "show_cameras",
+      "annotation": "Toggle camera visibility",
+      "language": "python",
+      "command": "from maya_tools.framework.utilities import toggle_cameras; toggle_cameras()"
+    },
+    {
+      "key": "*", "ctrl": false, "shift": false, "alt": true,
+      "name": "show_all_hidden",
+      "annotation": "Show all hidden objects",
+      "language": "mel",
+      "command": "showHidden -all;"
+    },
+    {
+      "key": "-", "ctrl": false, "shift": false, "alt": true,
+      "name": "display_none",
+      "annotation": "Hide all in active panel",
+      "language": "mel",
+      "command": "$currentPanel = `getPanel -withFocus`; modelEditor -e -alo 0 $currentPanel;"
+    },
+    {
+      "key": "=", "ctrl": false, "shift": false, "alt": true,
+      "name": "display_all",
+      "annotation": "Show all in active panel",
+      "language": "mel",
+      "command": "$currentPanel = `getPanel -withFocus`; modelEditor -e -alo 1 $currentPanel;"
+    },
+    {
+      "key": "s", "ctrl": false, "shift": false, "alt": true,
+      "name": "toggle_wireframe",
+      "annotation": "Toggle wireframe on shaded",
+      "language": "mel",
+      "command": "string $panel = `getPanel -wf`; $blah = `modelEditor -q -wos $panel`; if ($blah == 1) { modelEditor -e -wos 0 $panel; } else { modelEditor -e -wos 1 $panel; }"
+    },
+    {
+      "key": "x", "ctrl": false, "shift": false, "alt": true,
+      "name": "toggle_xray",
+      "annotation": "Toggle X-Ray mode",
+      "language": "mel",
+      "command": "string $visPanel[] = `getPanel -vis`; int $mode; if (size($visPanel)>0) { for ($panel in $visPanel) { if (`match \"^modelPanel\" $panel`==\"modelPanel\") { $mode=`modelEditor -q -xray $panel`; if ($mode>0) modelEditor -e -xray 0 $panel; else modelEditor -e -xray 1 $panel; } } }"
+    },
+    {
+      "key": "j", "ctrl": false, "shift": false, "alt": true,
+      "name": "create_joint",
+      "annotation": "Create joint (child of last selected joint, or at origin)",
+      "language": "python",
+      "command": "from maya_tools.skeleton.skeleton_utils import create_joint; create_joint()"
+    },
+    {
+      "key": "1", "ctrl": true, "shift": false, "alt": true,
+      "name": "toggle_joint_sel_mask",
+      "annotation": "Toggle joint selection mask",
+      "language": "mel",
+      "command": "$blah = `selectType -q -j`; if ($blah == 1) { selectType -j 0; } else { selectType -j 1; }"
+    },
+    {
+      "key": "2", "ctrl": true, "shift": false, "alt": true,
+      "name": "toggle_curve_sel_mask",
+      "annotation": "Toggle curve selection mask",
+      "language": "mel",
+      "command": "$blah = `selectType -q -nc`; if ($blah == 1) { selectType -nc 0; } else { selectType -nc 1; }"
+    },
+    {
+      "key": "3", "ctrl": true, "shift": false, "alt": true,
+      "name": "toggle_mesh_sel_mask",
+      "annotation": "Toggle mesh selection mask",
+      "language": "mel",
+      "command": "$blah = `selectType -q -p`; if ($blah == 1) { selectType -p 0; } else { selectType -p 1; }"
+    },
+    {
+      "key": "`", "ctrl": false, "shift": false, "alt": true,
+      "name": "select_hierarchy",
+      "annotation": "Select hierarchy",
+      "language": "mel",
+      "command": "SelectHierarchy;"
+    },
+    {
+      "key": "i", "ctrl": false, "shift": true, "alt": true,
+      "name": "invert_selection",
+      "annotation": "Invert selection",
+      "language": "mel",
+      "command": "InvertSelection;"
+    },
+    {
+      "key": "a", "ctrl": true, "shift": false, "alt": true,
+      "name": "select_ctrls",
+      "annotation": "Select all controls (*_ctrl)",
+      "language": "python",
+      "command": "import maya.cmds as cmds\nctrls = cmds.ls('*_ctrl', type='transform') or cmds.ls('*:*_ctrl', type='transform') or []\nif ctrls: cmds.select(ctrls)"
+    },
+    {
+      "key": "j", "ctrl": false, "shift": true, "alt": true,
+      "name": "sum_joints",
+      "annotation": "Count joints in hierarchy or scene",
+      "language": "mel",
+      "command": "select -hi; string $gJSel[]=`ls -sl -type joint`; int $gSel=`size($gJSel)`; if ($gSel>0) { print (\"There are \" + $gSel + \" joints in selected hierarchy.\"); } else { string $sjoint[]=`ls -type joint`; int $sumj=`size($sjoint)`; print (\"There are \" + $sumj + \" joints in your scene.\"); }"
+    },
+    {
+      "key": "w", "ctrl": false, "shift": false, "alt": true,
+      "name": "freeze_transforms",
+      "annotation": "Freeze transformations",
+      "language": "mel",
+      "command": "FreezeTransformations;"
+    },
+    {
+      "key": "e", "ctrl": false, "shift": false, "alt": true,
+      "name": "reset_transforms",
+      "annotation": "Reset transformations",
+      "language": "mel",
+      "command": "ResetTransformations;"
+    },
+    {
+      "key": "e", "ctrl": false, "shift": true, "alt": true,
+      "name": "export_one_button",
+      "annotation": "FBX export selected (skeletal if joint selected, else static)",
+      "language": "python",
+      "command": "from maya_tools.export.exporter_app import export_one_button; export_one_button()"
+    },
+    {
+      "key": "r", "ctrl": false, "shift": false, "alt": true,
+      "name": "center_pivot",
+      "annotation": "Center pivot",
+      "language": "mel",
+      "command": "CenterPivot;"
+    },
+    {
+      "key": "0", "ctrl": false, "shift": false, "alt": true,
+      "name": "zero_rotate",
+      "annotation": "Zero rotate and translate",
+      "language": "mel",
+      "command": "zeroRotate; zeroTranslate;"
+    },
+    {
+      "key": "1", "ctrl": true, "shift": false, "alt": false,
+      "name": "flip_x",
+      "annotation": "Flip X and freeze",
+      "language": "python",
+      "command": "import maya.cmds as cmds\nsel = cmds.ls(sl=True)\nif sel:\n    cmds.setAttr(sel[0]+'.sx', -1)\n    cmds.FreezeTransformations()"
+    },
+    {
+      "key": "z", "ctrl": false, "shift": false, "alt": false,
+      "name": "align_z",
+      "annotation": "Align Z max",
+      "language": "mel",
+      "command": "align -atl -z Max;"
+    },
+    {
+      "key": "r", "ctrl": false, "shift": true, "alt": true,
+      "name": "toggle_reflection",
+      "annotation": "Toggle symmetry/reflection",
+      "language": "mel",
+      "command": "$refToggle = `symmetricModelling -q -symmetry`; if ($refToggle == 1) { symmetricModelling -e -symmetry false; } else { symmetricModelling -e -symmetry true; } $blah = \"artPuttyCtx -q -reflection `currentCtx`\"; $blah2 = `eval $blah`; if ($blah2 == 1) { artPuttyCtx -e -reflection false `currentCtx`; } else { artPuttyCtx -e -reflection true `currentCtx`; }"
+    },
+    {
+      "key": "p", "ctrl": true, "shift": false, "alt": false,
+      "name": "parent_beside",
+      "annotation": "Parent beside last selected",
+      "language": "python",
+      "command": "import maya.cmds as cmds\nsel = cmds.ls(sl=True)\nif len(sel) >= 2:\n    par = cmds.listRelatives(sel[-1], parent=True, f=True)\n    cmds.select(sel[-1], deselect=True)\n    if par:\n        cmds.parent(cmds.ls(sl=True), par[0])"
+    },
+    {
+      "key": "z", "ctrl": false, "shift": false, "alt": true,
+      "name": "cluster_loop",
+      "annotation": "Create locator at center of selection",
+      "language": "python",
+      "command": "import maya.cmds as cmds\ncmds.ConvertSelectionToVertices()\nclust = cmds.cluster(n='tempClust')[1]\npos = cmds.xform(clust, q=True, rp=True, ws=True)\ncmds.select(cl=True)\nloc = cmds.spaceLocator(p=pos)[0]\ncmds.delete(clust)\ncmds.xform(loc, cp=True)\ncmds.scale(0.1, 0.1, 0.1, loc)"
+    },
+    {
+      "key": "s", "ctrl": false, "shift": true, "alt": false,
+      "name": "snapper",
+      "annotation": "Snap A to B",
+      "language": "python",
+      "command": "import importlib; import maya_tools.animation.anim_utils as m; importlib.reload(m); m.snap()"
+    },
+    {
+      "key": "t", "ctrl": false, "shift": false, "alt": true,
+      "name": "toggle_attr",
+      "annotation": "Toggle selected channel box attribute",
+      "language": "python",
+      "command": "import maya.cmds as cmds\nctrl = cmds.ls(sl=True)\nselected = cmds.channelBox('mainChannelBox', q=True, sma=True)\nif selected and ctrl:\n    for attr in selected:\n        val = cmds.getAttr('%s.%s' % (ctrl[0], attr))\n        cmds.setAttr('%s.%s' % (ctrl[0], attr), int(not val))\nelse:\n    cmds.warning('No attribute selected to toggle')"
+    },
+    {
+      "key": "a", "ctrl": false, "shift": false, "alt": true,
+      "name": "delete_key",
+      "annotation": "Delete key on timeline",
+      "language": "mel",
+      "command": "timeSliderClearKey;"
+    },
+    {
+      "key": "v", "ctrl": false, "shift": false, "alt": true,
+      "name": "paste_key_to_timeline",
+      "annotation": "Paste key to timeline",
+      "language": "mel",
+      "command": "timeSliderPasteKey false;"
+    },
+    {
+      "key": "i", "ctrl": false, "shift": false, "alt": true,
+      "name": "infinity_pre_post",
+      "annotation": "Set pre/post infinity to cycle",
+      "language": "mel",
+      "command": "setInfinity -pri cycle; setInfinity -poi cycle; animCurveEditor -edit -displayInfinities true graphEditor1GraphEd;"
+    },
+    {
+      "key": "r", "ctrl": true, "shift": false, "alt": true,
+      "name": "reverse_keys",
+      "annotation": "Reverse animation keys",
+      "language": "mel",
+      "command": "scaleKey -iub false -timeScale -1 -animation keys;"
+    },
+    {
+      "key": "0", "ctrl": true, "shift": false, "alt": true,
+      "name": "anim_killer",
+      "annotation": "Remove all animation from selected",
+      "language": "python",
+      "command": "import maya.cmds as cmds, maya.mel as mel\nmel.eval('source generateChannelMenu')\nfor sel in cmds.ls(sl=True) or []:\n    for attr in cmds.listAttr(sel, k=True) or []:\n        mel.eval('CBdeleteConnection(\"%s.%s\")'%(sel,attr))"
+    },
+    {
+      "key": "b", "ctrl": false, "shift": true, "alt": true,
+      "name": "smooth_bind",
+      "annotation": "Smooth bind skin",
+      "language": "mel",
+      "command": "SmoothBindSkin;"
+    },
+    {
+      "key": "s", "ctrl": true, "shift": true, "alt": false,
+      "name": "save_as",
+      "annotation": "Save scene as",
+      "language": "mel",
+      "command": "SaveSceneAs;"
+    },
+    {
+      "key": "o", "ctrl": true, "shift": false, "alt": true,
+      "name": "reload_file",
+      "annotation": "Reload current scene",
+      "language": "mel",
+      "command": "$ReloadFileResult = `confirmDialog -title \"Reload File?\" -message \"Reload File?\" -button \"Yes\" -button \"No\" -defaultButton \"Yes\" -cancelButton \"No\" -dismissString \"No\"`; if ($ReloadFileResult == \"Yes\") { file -f -o `file -q -loc`; }"
+    },
+    {
+      "key": "h", "ctrl": true, "shift": false, "alt": true,
+      "name": "show_hidden_selection",
+      "annotation": "Show selected hidden objects",
+      "language": "mel",
+      "command": "ShowSelectedObjects;"
+    },
+    {
+      "key": "p", "ctrl": false, "shift": true, "alt": true,
+      "name": "end_progress",
+      "annotation": "End progress window",
+      "language": "mel",
+      "command": "progressWindow -endProgress;"
+    },
+    {
+      "key": "t", "ctrl": true, "shift": false, "alt": true,
+      "name": "texture_refresh",
+      "annotation": "Refresh all file textures",
+      "language": "mel",
+      "command": "string $files[] = `ls -type \"file\"`; for ($file in $files) { string $fileName = `getAttr ($file+\".fileTextureName\")`; setAttr -type \"string\" ($file+\".fileTextureName\") $fileName; }"
+    },
+    {
+      "key": "c", "ctrl": false, "shift": false, "alt": true,
+      "name": "cube_creator",
+      "annotation": "Create polygon cube",
+      "language": "mel",
+      "command": "polyCube -w 1 -h 1 -d 1 -sx 1 -sy 1 -sz 1 -ax 0 1 0 -cuv 4 -ch 1;"
+    },
+    {
+      "key": "p", "ctrl": false, "shift": false, "alt": true,
+      "name": "plane_creator",
+      "annotation": "Create polygon plane",
+      "language": "mel",
+      "command": "polyPlane -w 1 -h 1 -sx 1 -sy 1 -ax 0 0 1 -cuv 2 -ch 1;"
+    },
+    {
+      "key": "o", "ctrl": false, "shift": false, "alt": true,
+      "name": "outliner_window",
+      "annotation": "Open Outliner",
+      "language": "mel",
+      "command": "OutlinerWindow;"
+    },
+    {
+      "key": "q", "ctrl": false, "shift": false, "alt": true,
+      "name": "delete_history",
+      "annotation": "Delete history",
+      "language": "mel",
+      "command": "DeleteHistory;"
+    },
+    {
+      "key": "p", "ctrl": true, "shift": false, "alt": true,
+      "name": "display_test",
+      "annotation": "Toggle joint visibility in focused panel",
+      "language": "python",
+      "command": "import maya.cmds as cmds\npanel = cmds.getPanel(wf=True)\nif cmds.getPanel(to=panel) == 'modelPanel':\n    state = cmds.modelEditor(panel, q=True, j=True)\n    cmds.modelEditor(panel, e=True, j=not state)"
+    }
+  ]
+}

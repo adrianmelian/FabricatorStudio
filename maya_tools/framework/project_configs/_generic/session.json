@@ -1,0 +1,14 @@
+{
+  "name": "Generic",
+  "engine": "generic",
+  "linear_unit": "cm",
+  "angular_unit": "deg",
+  "frame_rate": "ntsc",
+  "playback_start": 1,
+  "playback_end": 60,
+  "undo_depth": 200,
+  "camera_near_clip": 1.0,
+  "camera_far_clip": 1000000.0,
+  "grid": {},
+  "blueprints_subpath": ""
+}

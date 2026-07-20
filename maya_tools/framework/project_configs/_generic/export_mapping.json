@@ -1,0 +1,23 @@
+{
+  "schema_version": 2,
+  "_note": "path_patterns / anim_path_patterns / prefixes are GENERATED from asset_classes by the project setup tool. Edit asset_classes and re-save; do not hand-edit the generated keys.",
+  "name": "Generic",
+  "asset_classes": [],
+  "path_patterns": [],
+  "anim_path_patterns": {
+    "gameplay": [],
+    "cinematic": []
+  },
+  "prefixes": {},
+  "anim_prefix": "",
+  "pose_library_subpath": "SourceArt/_pose_library",
+  "anim_library_subpath": "SourceArt/_anim_library",
+  "mesh_group_name": "",
+  "engine_up_axis": "",
+  "fbx_presets": {
+    "static_mesh": {},
+    "skeletal_mesh": {},
+    "animation": {}
+  },
+  "_status": "experimental"
+}

@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "min_core_version": "1.3.0",
+  "files": [
+    "maya_tools/rigging/fabricator/modules/_ribbon_common.py",
+    "maya_tools/rigging/fabricator/modules/ribbon_spine.py",
+    "maya_tools/rigging/fabricator/modules/ribbon_ik_arm.py",
+    "maya_tools/rigging/fabricator/modules/ribbon_ik_leg.py",
+    "maya_tools/rigging/fabricator/templates/Advanced_Arm.limb.yaml",
+    "maya_tools/rigging/fabricator/templates/Advanced_Leg.limb.yaml",
+    "maya_tools/rigging/fabricator/templates/Advanced_Spine.limb.yaml",
+    "maya_tools/rigging/fabricator/templates/Advanced_NeckHead.limb.yaml",
+    "maya_tools/rigging/fabricator/templates/Advanced_Biped.blueprint.yaml",
+    "maya_tools/docs/components/ribbon-spine.md",
+    "maya_tools/docs/components/ribbon-ik-arm.md",
+    "maya_tools/docs/components/ribbon-ik-leg.md"
+  ]
+}

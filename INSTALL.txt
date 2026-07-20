@@ -1,0 +1,38 @@
+FabricatorStudio - Install
+==========================
+
+1. Open Maya (2022 or newer).
+
+2. Drag Fabricator_Install.py from this folder into the Maya viewport.
+
+3. Follow the on-screen steps, then press Install.
+
+That is it. The FabricatorStudio toolbar appears right away, and a short
+welcome tour shows you around.
+
+Prefer a menu and shelves too? Turn them on any time in Settings, on the
+toolbar gear. They load on the spot.
+
+Keep this folder somewhere you can find it again. Fabricator_Uninstall.py
+lives here too: drag it in the same way to remove the toolset.
+
+
+Notes
+-----
+
+Install Directory: the installer fills in your Maya scripts folder, which
+is the right answer for almost everyone. You can browse to a different
+location if you prefer.
+
+Sharing with a team: put this whole folder on a network or Perforce drive,
+then each artist drags Fabricator_Install.py in and picks "Run from current
+location". Nothing is copied, and everyone runs the same install.
+
+No admin rights are needed, and the installer makes no network calls.
+
+Docs and tutorials: https://fabricator.studio
+Something broken? https://github.com/adrianmelian/FabricatorStudio/issues
+
+Licensed under the Business Source License 1.1. Free for personal and
+learning use, and for organizations under 2 million USD annual revenue.
+See Fabricator_Data/LICENSE for the full terms.

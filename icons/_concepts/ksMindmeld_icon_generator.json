@@ -1,0 +1,93 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "sd_xl_base_1.0.safetensors"
+    },
+    "_meta": {"title": "SDXL Base Checkpoint"}
+  },
+  "2": {
+    "class_type": "LoraLoader",
+    "inputs": {
+      "lora_name": "pixel-art-xl.safetensors",
+      "strength_model": 0.0,
+      "strength_clip": 0.0,
+      "model": ["1", 0],
+      "clip": ["1", 1]
+    },
+    "_meta": {"title": "Pixel-Art-XL LoRA (DISABLED — strength 0.0 for flat-vector style)"}
+  },
+  "3": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "pixel art icon of wrench, centered single object, machinist tool aesthetic, chunky pixel outlines, palette: bone cream #E8E0D0 / plasma mint green #7CFFB2 / ember orange #FF7A3D, solid pure #000000 black background edge to edge, no text, no letters, no humans, retro 8-bit, square aspect",
+      "clip": ["2", 1]
+    },
+    "_meta": {"title": "// SUBJECT // — change this only"}
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "text, letters, words, typography, signature, watermark, white background, gray background, transparent, humans, faces, hands, blur, anti-aliasing, smooth gradient, photorealistic, realistic, 3D render, soft edges, oversaturated",
+      "clip": ["2", 1]
+    },
+    "_meta": {"title": "negative (locked — do not edit)"}
+  },
+  "5": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 4
+    },
+    "_meta": {"title": "1024×1024 batch=4"}
+  },
+  "6": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 42,
+      "steps": 30,
+      "cfg": 7.0,
+      "sampler_name": "dpmpp_2m",
+      "scheduler": "karras",
+      "denoise": 1.0,
+      "model": ["2", 0],
+      "positive": ["3", 0],
+      "negative": ["4", 0],
+      "latent_image": ["5", 0]
+    },
+    "_meta": {"title": "KSampler (dpmpp_2m / karras / 30 / cfg 7)"}
+  },
+  "7": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["6", 0],
+      "vae": ["1", 2]
+    },
+    "_meta": {"title": "VAE Decode"}
+  },
+  "8": {
+    "class_type": "RMBG",
+    "inputs": {
+      "image": ["7", 0],
+      "model": "RMBG-2.0",
+      "sensitivity": 1.0,
+      "process_res": 512,
+      "mask_blur": 0,
+      "mask_offset": 0,
+      "invert_output": false,
+      "refine_foreground": false,
+      "background": "Alpha",
+      "background_color": "#222222"
+    },
+    "_meta": {"title": "RMBG — AI subject segmentation → RGBA"}
+  },
+  "10": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["8", 0],
+      "filename_prefix": "ksMindmeld"
+    },
+    "_meta": {"title": "Save RGBA PNG"}
+  }
+}

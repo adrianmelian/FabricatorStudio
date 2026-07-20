@@ -1,0 +1,303 @@
+{
+  "name": "fsModel",
+  "buttons": [
+    {
+      "type": "button",
+      "label": "Save Scene",
+      "tooltip": "Save Scene - right-click for more file operations",
+      "image": "fs_save_tools.png",
+      "command": "import maya.cmds as cmds; cmds.SaveScene()",
+      "popup": [
+        {"type": "item", "label": "Save Scene",      "command": "import maya.cmds as cmds; cmds.SaveScene()"},
+        {"type": "item", "label": "Save Scene As...", "command": "import maya.cmds as cmds; cmds.SaveSceneAs()"},
+        {"type": "divider"},
+        {"type": "item", "label": "Load Scene",      "command": "import maya.cmds as cmds; cmds.OpenScene()"},
+        {"type": "item", "label": "Reload Scene",    "command": "import maya.cmds as cmds\nf = cmds.file(q=True, sn=True)\ncmds.file(f, open=True, force=True) if f else cmds.warning('Scene not saved to disk')"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Load Scene",
+      "tooltip": "Load Scene rooted at current scene's directory - right-click for Source<->Rig",
+      "image": "fs_load_tools.png",
+      "command": "import importlib; import maya_tools.framework.scene_loader as s; importlib.reload(s); s.open_scene_in_current_dir()",
+      "popup": [
+        {"type": "item", "label": "Load Scene",          "command": "import importlib; import maya_tools.framework.scene_loader as s; importlib.reload(s); s.open_scene_in_current_dir()"},
+        {"type": "divider"},
+        {"type": "item", "label": "Open Source <-> Rig", "command": "import importlib; import maya_tools.framework.scene_loader as s; importlib.reload(s); s.open_source_rig_sibling()"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Scene Batch",
+      "tooltip": "Open the Scene Batch tool. Runs Python, export, and save across multiple scenes.",
+      "image": "fs_scene_batch.png",
+      "command": "import importlib; from maya_tools.scene_batch import scene_batch_app as a, scene_batch_ui as m; importlib.reload(a); importlib.reload(m); m.SceneBatchWindow.show_window()"
+    },
+    {
+      "type": "button",
+      "label": "Project Setup",
+      "tooltip": "Project Setup - right-click for Maya settings",
+      "image": "fs_settings_tools.png",
+      "command": "import importlib; import maya_tools.framework.project_setup_ui as m; importlib.reload(m); m.ProjectSetupUI.show_window()",
+      "popup": [
+        {"type": "item", "label": "Project Setup", "command": "import importlib; import maya_tools.framework.project_setup_ui as m; importlib.reload(m); m.ProjectSetupUI.show_window()"},
+        {"type": "divider"},
+        {"type": "item", "label": "Preferences",   "command": "import maya.mel as mel; mel.eval('PreferencesWindow')"},
+        {"type": "item", "label": "Plugin Manager", "command": "import maya.mel as mel; mel.eval('PluginManager')"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "FBX Export",
+      "tooltip": "Export selected (one-button) - right-click for Exporter UI",
+      "image": "fs_export_tools.png",
+      "command": "import importlib; import maya_tools.export.exporter_app as a; importlib.reload(a); a.export_one_button()",
+      "popup": [
+        {"type": "item", "label": "Export Selection (one-button)", "command": "import importlib; import maya_tools.export.exporter_app as a; importlib.reload(a); a.export_one_button()"},
+        {"type": "item", "label": "Open Exporter UI",              "command": "import importlib; import maya_tools.export.export_core as c; import maya_tools.export.exporter_app as a; import maya_tools.export.exporter_ui as m; importlib.reload(c); importlib.reload(a); importlib.reload(m); m.ExporterWindow.show_window()"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Update Rigged Model",
+      "tooltip": "Update Rigged Model. Source->Rig and Rig->Source",
+      "image": "fs_update_rigged_model.png",
+      "command": "import importlib; import maya_tools.pipeline.rigged_model_updater.rigged_model_updater_app as a; importlib.reload(a); a.update_rigged_model()"
+    },
+    {"type": "separator"},
+    {
+      "type": "button",
+      "label": "Clipboard",
+      "tooltip": "Copy selected names to clipboard - right-click for more",
+      "image": "fs_clipboard_tools.png",
+      "command": "from PySide6.QtWidgets import QApplication\nimport maya.cmds as cmds\nQApplication.clipboard().setText('\\n'.join(cmds.ls(sl=True) or []))",
+      "popup": [
+        {"type": "item", "label": "Copy Selected",        "command": "from PySide6.QtWidgets import QApplication\nimport maya.cmds as cmds\nQApplication.clipboard().setText('\\n'.join(cmds.ls(sl=True) or []))"},
+        {"type": "item", "label": "Copy Scene Name",      "command": "from PySide6.QtWidgets import QApplication\nimport maya.cmds as cmds, os\nscene = cmds.file(q=True, sn=True)\nQApplication.clipboard().setText(os.path.splitext(os.path.basename(scene))[0] if scene else '')"},
+        {"type": "item", "label": "Copy Scene Directory", "command": "from PySide6.QtWidgets import QApplication\nimport maya.cmds as cmds, os\nscene = cmds.file(q=True, sn=True)\nQApplication.clipboard().setText(os.path.dirname(scene) if scene else '')"},
+        {"type": "item", "label": "Copy Scene Full Path", "command": "from PySide6.QtWidgets import QApplication\nimport maya.cmds as cmds\nQApplication.clipboard().setText(cmds.file(q=True, sn=True) or '')"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Scene Cleanup",
+      "tooltip": "Select Mesh Artifacts (Non-Manifold / Lamina / Zero-Area)",
+      "image": "fs_cleaning_tools.png",
+      "command": "import importlib; import maya_tools.framework.scene_cleanup.scene_cleanup_app as a; importlib.reload(a); a.select_mesh_artifacts()",
+      "popup": [
+        {"type": "item",
+         "label": "Select Mesh Artifacts (Non-Manifold / Lamina / Zero-Area)",
+         "command": "import importlib; import maya_tools.framework.scene_cleanup.scene_cleanup_app as a; importlib.reload(a); a.select_mesh_artifacts()"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Selection Helpers",
+      "tooltip": "Select joints influencing selection - right-click for more",
+      "image": "fs_selection_tools.png",
+      "command": "import maya.cmds as cmds\nsel = cmds.ls(sl=True)\nif sel:\n    hist = cmds.listHistory(sel, pruneDagObjects=True) or []\n    scs = cmds.ls(hist, type='skinCluster')\n    joints = list({j for sc in scs for j in (cmds.skinCluster(sc, q=True, influence=True) or [])})\n    cmds.select(joints) if joints else cmds.warning('No skinCluster found on selection')\nelse:\n    cmds.warning('Nothing selected')",
+      "popup": [
+        {"type": "item", "label": "Select all child joints from selection",        "command": "from maya_tools.framework.utilities import select_child_joints; select_child_joints()"},
+        {"type": "item", "label": "Select all child meshes from selection",        "command": "from maya_tools.framework.utilities import select_child_meshes; select_child_meshes()"},
+        {"type": "divider"},
+        {"type": "item", "label": "Select joints influencing selected",           "command": "import maya.cmds as cmds\nsel = cmds.ls(sl=True)\nif sel:\n    hist = cmds.listHistory(sel, pruneDagObjects=True) or []\n    scs = cmds.ls(hist, type='skinCluster')\n    joints = list({j for sc in scs for j in (cmds.skinCluster(sc, q=True, influence=True) or [])})\n    cmds.select(joints) if joints else cmds.warning('No skinCluster found on selection')\nelse:\n    cmds.warning('Nothing selected')"},
+        {"type": "item", "label": "Select objects influenced by selected joints",  "command": "import maya.cmds as cmds\njoints = cmds.ls(sl=True, type='joint')\nif joints:\n    meshes = list({g for j in joints for sc in (cmds.listConnections(j, type='skinCluster') or []) for g in (cmds.skinCluster(sc, q=True, geometry=True) or [])})\n    cmds.select(meshes) if meshes else cmds.warning('No skin bindings found')\nelse:\n    cmds.warning('Select joints first')"},
+        {"type": "item", "label": "Select unskinned meshes",                      "command": "import maya.cmds as cmds\nfrom maya_tools.framework import utilities as u\nmeshes = u.scene_mesh_shapes()\nunskinned = [cmds.listRelatives(m, parent=True, fullPath=True)[0] for m in meshes if not cmds.ls(cmds.listHistory(m, pruneDagObjects=True) or [], type='skinCluster')]\ncmds.select(unskinned) if unskinned else cmds.inViewMessage(msg='All meshes are skinned', pos='midCenter', fade=True)"},
+        {"type": "item", "label": "Create locator at center of selected",         "command": "import maya.cmds as cmds\nsel = cmds.ls(sl=True, fl=True)\nif sel:\n    pts = [cmds.pointPosition(s, w=True) for s in sel]\n    n = len(pts)\n    loc = cmds.spaceLocator()[0]\n    cmds.move(sum(p[0] for p in pts)/n, sum(p[1] for p in pts)/n, sum(p[2] for p in pts)/n, loc, ws=True)\nelse:\n    cmds.warning('Nothing selected')"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Snap A to B",
+      "tooltip": "Snap source(s) to last selection (translate). Trailing component selection (edge loop, faces, verts, CVs) snaps source(s) to the components' centroid.",
+      "image": "fs_snap_tools.png",
+      "command": "import maya_tools.framework.utilities as u; u.snap_a_to_b(orientation=False)"
+    },
+    {"type": "separator"},
+    {
+      "type": "button",
+      "label": "QuadRemesher",
+      "tooltip": "Open QuadRemesher UI",
+      "image": "QuadRemesher.png",
+      "command": "import QuadRemesher;qr = QuadRemesher.QuadRemesher()"
+    },
+    {
+      "type": "button",
+      "label": "Display Face Normals",
+      "tooltip": "Toggle face normal display",
+      "image": "menuIconDisplay.png",
+      "command": "import maya.mel as mel; mel.eval('ToggleFaceNormalDisplay')"
+    },
+    {
+      "type": "button",
+      "label": "Sculpt Geometry",
+      "tooltip": "Sculpt Geometry Tool — double-click for options",
+      "image": "putty.png",
+      "command": "import maya.mel as mel; mel.eval('SculptGeometryTool')",
+      "doubleClickCommand": "import maya.mel as mel; mel.eval('SculptGeometryToolOptions')"
+    },
+    {
+      "type": "button",
+      "label": "Extrude Face",
+      "tooltip": "Extrude selected faces — double-click for options",
+      "image": "polyExtrudeFacet.png",
+      "command": "import maya.mel as mel; mel.eval('performPolyExtrude 0')",
+      "doubleClickCommand": "import maya.mel as mel; mel.eval('performPolyExtrude 1')"
+    },
+    {
+      "type": "button",
+      "label": "Move Component",
+      "tooltip": "Move Component Tool — double-click for options",
+      "image": "polyMoveVertex.png",
+      "command": "import maya.mel as mel; mel.eval('performPolyMove \"\" 0')",
+      "doubleClickCommand": "import maya.mel as mel; mel.eval('performPolyMove \"\" 1')"
+    },
+    {
+      "type": "button",
+      "label": "Multi-Cut",
+      "tooltip": "Multi-Cut Tool — double-click for options",
+      "image": "multiCut_NEX32.png",
+      "command": "import maya.mel as mel; mel.eval('MultiCutTool')",
+      "doubleClickCommand": "import maya.mel as mel; mel.eval('MultiCutToolOptions')"
+    },
+    {
+      "type": "button",
+      "label": "Split Edge Ring",
+      "tooltip": "Split Edge Ring Tool (Classic) — double-click for options",
+      "image": "polySplitEdgeRing.png",
+      "command": "import maya.mel as mel; mel.eval('SplitEdgeRingTool')",
+      "doubleClickCommand": "import maya.mel as mel; mel.eval('SplitEdgeRingToolOptions')"
+    },
+    {
+      "type": "button",
+      "label": "Smooth Mesh",
+      "tooltip": "Smooth selected mesh (1 division) — double-click for options",
+      "image": "polySmooth.png",
+      "command": "import maya.mel as mel; mel.eval('polyPerformAction \"polySmooth -mth 0 -dv 1 -peh 0 -bnr 0 -c 1 -kb 1 -ksb 1 -khe 0 -kt 1 -kmb 1 -suv 1 -sl 1 -dpe 1 -ps 0.1 -ro 1\" f 0')",
+      "doubleClickCommand": "import maya.mel as mel; mel.eval('performPolySmooth 1')"
+    },
+    {
+      "type": "button",
+      "label": "Bevel Edges",
+      "tooltip": "Bevel selected edges (2 segments, auto-fit) — double-click for options",
+      "image": "polyBevel.png",
+      "command": "import maya.mel as mel; mel.eval('polyPerformAction \"polyBevel -offset 0.003 -offsetAsFraction 1 -autoFit 1 -segments 2 -worldSpace 1 -uvAssignment 0 -fillNgons 1 -mergeVertices 1 -mergeVertexTolerance 0.0001 -smoothingAngle 30 -miteringAngle 180 -angleTolerance 180\" e 0')",
+      "doubleClickCommand": "import maya.mel as mel; mel.eval('performPolyBevel 1')"
+    },
+    {
+      "type": "button",
+      "label": "Delete Edge/Vertex",
+      "tooltip": "Delete selected edges or vertices",
+      "image": "polyDelEdgeVertex.png",
+      "command": "import maya.mel as mel; mel.eval('performPolyDeleteElements')"
+    },
+    {
+      "type": "button",
+      "label": "Merge Options",
+      "tooltip": "Polygon merge options",
+      "image": "polyMerge.png",
+      "command": "import maya.mel as mel; mel.eval('PolyMergeOptions')"
+    },
+    {
+      "type": "button",
+      "label": "Soft/Hard Normals",
+      "tooltip": "Soften normals (main) - right-click to harden",
+      "image": "polySoftEdge.png",
+      "command": "import maya.mel as mel; mel.eval('SoftPolyEdgeElements 1')",
+      "popup": [
+        {"type": "item", "label": "Soften Normals", "command": "import maya.mel as mel; mel.eval('SoftPolyEdgeElements 1')"},
+        {"type": "item", "label": "Harden Normals", "command": "import maya.mel as mel; mel.eval('SoftPolyEdgeElements 0')"}
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Reverse Normals",
+      "tooltip": "Reverse polygon normals",
+      "image": "polyNormal.png",
+      "command": "import maya.mel as mel; mel.eval('ReversePolygonNormals')"
+    },
+    {
+      "type": "button",
+      "label": "Split Polygon",
+      "tooltip": "Split Polygon Tool — double-click for options",
+      "image": "split.png",
+      "command": "import maya.mel as mel; mel.eval('SplitPolygonTool')",
+      "doubleClickCommand": "import maya.mel as mel; mel.eval('SplitPolygonToolOptions')"
+    },
+    {
+      "type": "button",
+      "label": "Combine",
+      "tooltip": "Combine selected meshes — double-click for options",
+      "image": "polyUnite.png",
+      "command": "import maya.mel as mel; mel.eval('polyPerformAction polyUnite o 0')",
+      "doubleClickCommand": "import maya.mel as mel; mel.eval('performPolyUnite 1')"
+    },
+    {
+      "type": "button",
+      "label": "Separate",
+      "tooltip": "Separate selected mesh shells",
+      "image": "polySeparate.png",
+      "command": "import maya.mel as mel; mel.eval('SeparatePolygon')"
+    },
+    {
+      "type": "button",
+      "label": "Mirror Geometry",
+      "tooltip": "Mirror polygon geometry — double-click for options",
+      "image": "polyMirrorGeometry.png",
+      "command": "import maya.mel as mel; mel.eval('MirrorPolygonGeometry')",
+      "doubleClickCommand": "import maya.mel as mel; mel.eval('MirrorPolygonGeometryOptions')"
+    },
+    {
+      "type": "button",
+      "label": "Merge to Center",
+      "tooltip": "Merge selected components to their center point",
+      "image": "polyMergeToCenter.png",
+      "command": "import maya.mel as mel; mel.eval('MergeToCenter')"
+    },
+    {
+      "type": "button",
+      "label": "Poly Merge",
+      "tooltip": "Merge vertices/border edges on selection — double-click for options",
+      "image": "polyMerge.png",
+      "command": "import maya.mel as mel; mel.eval('performPolyMerge 0')",
+      "doubleClickCommand": "import maya.mel as mel; mel.eval('performPolyMerge 1')"
+    },
+    {
+      "type": "button",
+      "label": "Append Face",
+      "tooltip": "Append to Polygon Tool — double-click for options",
+      "image": "polyAppendFacet.png",
+      "command": "import maya.mel as mel; mel.eval('setToolTo polyAppendFacetContext; polyAppendFacetCtx -e -pc `optionVar -q polyKeepFacetsPlanar` polyAppendFacetContext')",
+      "doubleClickCommand": "import maya.mel as mel; mel.eval('AppendToPolygonToolOptions')"
+    },
+    {
+      "type": "button",
+      "label": "Quad Draw",
+      "tooltip": "Quad Draw Tool - retopology",
+      "image": "quadDraw_NEX32.png",
+      "command": "import maya.mel as mel; mel.eval('QuadDrawTool')"
+    },
+    {
+      "type": "button",
+      "label": "Lattice",
+      "tooltip": "Create Lattice with options",
+      "image": "lattice.png",
+      "command": "import maya.mel as mel; mel.eval('CreateLatticeOptions')"
+    },
+    {
+      "type": "button",
+      "label": "UV Editor",
+      "tooltip": "UV Editor - right-click for more UV tools",
+      "image": "textureEditor.png",
+      "command": "import maya.mel as mel; mel.eval('TextureViewWindow')",
+      "popup": [
+        {"type": "item", "label": "UV Editor",                    "command": "import maya.mel as mel; mel.eval('TextureViewWindow')"},
+        {"type": "item", "label": "Cut/Sew UV Tool",              "command": "import maya.mel as mel; mel.eval('SetCutSewUVTool')"},
+        {"type": "item", "label": "UV Planar Projection Options", "command": "import maya.mel as mel; mel.eval('UVPlanarProjectionOptions')"},
+        {"type": "item", "label": "UV Automatic Projection",      "command": "import maya.mel as mel; mel.eval('UVAutomaticProjectionOptions')"},
+        {"type": "item", "label": "Planar Project (Persp)",       "command": "import maya.cmds as cmds; cmds.polyProjection(type='Planar', md='p')"}
+      ]
+    }
+  ]
+}

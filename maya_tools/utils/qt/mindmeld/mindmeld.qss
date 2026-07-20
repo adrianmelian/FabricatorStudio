@@ -1,0 +1,1118 @@
+/* ==============================================================
+   MINDMELD — PySide6 stylesheet
+   --------------------------------------------------------------
+   Production stylesheet for AM Maya Tools. Applied via
+   `mindmeld_style.apply(widget)` from utils.qt.mindmeld.
+
+   Reference (visual showcase):
+     docs/design_system/index.html
+
+   Conventions:
+   - Variant styling uses Qt dynamic properties:
+       widget.setProperty("mindmeld", "primary")  ->  selector [mindmeld="primary"]
+   - Colors are inlined (Qt QSS has no CSS variables).
+   - All hex values match the design tokens exported by
+     mindmeld_style.TOKENS — keep them in sync if you edit either side.
+   - QSS does NOT support `letter-spacing` or `text-transform`.
+     Caps text is handled by helpers in mindmeld_style.py
+     (see make_field_label, make_caps_label).
+   ============================================================== */
+
+/* ============================== BASE ============================== */
+
+QWidget {
+    background-color: #0B0E10;
+    color: #E8E0D0;
+    font-family: "JetBrains Mono", "Consolas", monospace;
+    font-size: 12px;
+}
+
+QDialog, QMainWindow {
+    background-color: #0B0E10;
+}
+
+/* Tooltips were the last stock-Qt survivor — every Mindmeld button
+   carries one, so they wear the two-tone surface too. */
+QToolTip {
+    background-color: #262C33;
+    color: #E8E0D0;
+    border: 1px solid #353D45;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
+/* ============================== FRAMES / PANELS ============================== */
+
+QFrame {
+    background-color: transparent;
+    border: none;
+}
+
+QFrame[mindmeld="panel"] {
+    background-color: #1C2126;
+    border: 1px solid #353D45;
+    border-radius: 8px;
+}
+
+QFrame[mindmeld="surface"] {
+    background-color: #1C2126;
+    border-radius: 8px;
+}
+
+QFrame[mindmeld="rule-h"] {
+    background-color: #353D45;
+    max-height: 1px;
+    min-height: 1px;
+    border: none;
+}
+
+QFrame[mindmeld="rule-v"] {
+    background-color: #353D45;
+    max-width: 1px;
+    min-width: 1px;
+    border: none;
+}
+
+QFrame[mindmeld="card"] {
+    background-color: #1C2126;
+    border: 1px solid #353D45;
+    border-radius: 8px;
+}
+
+QFrame[mindmeld="card"]:hover {
+    border: 1px solid #4FB888;
+}
+
+QFrame[mindmeld="card_selected"] {
+    background-color: #262C33;
+    border: 2px solid #7CFFB2;
+    border-radius: 8px;
+}
+
+/* ============================== GROUPBOX ============================== */
+
+QGroupBox {
+    background-color: transparent;
+    border: 1px solid #353D45;
+    border-radius: 8px;
+    margin-top: 14px;
+    padding: 14px 12px 12px 12px;
+    color: #FF7A3D;
+    font-size: 10px;
+    font-weight: 500;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 10px;
+    top: -2px;
+    padding: 0 6px;
+    background-color: #0B0E10;
+    color: #FF7A3D;
+}
+
+/* ============================== LABELS ============================== */
+
+QLabel {
+    background: transparent;
+    color: #E8E0D0;
+}
+
+QLabel:disabled {
+    color: #5A554D;
+}
+
+QLabel[mindmeld="dim"]   { color: #8A8378; }
+QLabel[mindmeld="faint"] { color: #5A554D; }
+QLabel[mindmeld="ok"]    { color: #7CFFB2; }
+QLabel[mindmeld="warn"]  { color: #FF7A3D; }
+
+/* field labels — drawn over inputs, ember accent.
+   Caller is responsible for uppercasing the text via make_field_label(). */
+QLabel[mindmeld="field-label"] {
+    color: #FF7A3D;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 0;
+    margin: 0;
+}
+
+/* display heading — Mindmeld 2.0: JetBrains Mono Bold, large.
+   (VT323 retired 2026-07-13. The outlined tri-color wordmark treatment
+   lives in the banner PNGs; the text form is the plain Bold face.) */
+QLabel[mindmeld="display"] {
+    font-family: "JetBrains Mono", "Consolas", monospace;
+    font-weight: 700;
+    font-size: 22px;
+    color: #E8E0D0;
+}
+
+QLabel[mindmeld="display-lg"] {
+    font-family: "JetBrains Mono", "Consolas", monospace;
+    font-weight: 700;
+    font-size: 30px;
+    color: #E8E0D0;
+}
+
+QLabel[mindmeld="display-accent"] {
+    font-family: "JetBrains Mono", "Consolas", monospace;
+    font-weight: 700;
+    font-size: 22px;
+    color: #7CFFB2;
+}
+
+QLabel[mindmeld="caps"] {
+    font-size: 11px;
+    color: #8A8378;
+    font-weight: 500;
+}
+
+/* helper text — small, dim, sits below an input */
+QLabel[mindmeld="helper"] {
+    color: #8A8378;
+    font-size: 10px;
+}
+
+/* ASCII rule — caller fills text with ═══ */
+QLabel[mindmeld="ascii-rule"] {
+    color: #353D45;
+    font-size: 11px;
+}
+
+/* 2.0 banner voice (dashboard .app__error / .bugs__warning): glow
+   wash behind accent text. Tag a QLabel with mindmeld="banner-warn" /
+   "banner-ok"; a mindmeld_style factory lands with the 2.0 sweep. */
+QLabel[mindmeld="banner-warn"] {
+    background-color: rgba(255, 122, 61, 56);   /* ember-glow */
+    color: #FF7A3D;
+    padding: 8px 16px;
+    font-size: 11px;
+}
+
+QLabel[mindmeld="banner-ok"] {
+    background-color: rgba(124, 255, 178, 46);  /* plasma-glow */
+    color: #7CFFB2;
+    padding: 8px 16px;
+    font-size: 11px;
+}
+
+/* ============================== BUTTONS ============================== */
+
+/* Mindmeld 2.0 two-tone (Adrian ratified 2026-07-05): carbon is the
+   room, iron_2 is everything you can touch — buttons, inputs, lists,
+   combos match the CollapsibleSection header. Hover lifts to iron_3,
+   pressed drops to iron. */
+QPushButton {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #2D343C, stop:1 #262C33);   /* restrained 2.0 depth: soft top-light */
+    color: #E8E0D0;
+    border: 1px solid #353D45;
+    border-radius: 6px;
+    padding: 6px 16px;
+    font-size: 11px;
+    font-weight: 500;
+    min-height: 18px;
+    min-width: 60px;
+}
+
+/* Hover speaks plasma-dim everywhere (2.0 harmony: inputs, combos,
+   cards and scrollbars already did; buttons were the odd one out). */
+QPushButton:hover {
+    border-color: #4FB888;
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #3C444D, stop:1 #353D45);
+}
+
+QPushButton:pressed {
+    background-color: #1C2126;
+}
+
+QPushButton:disabled {
+    color: #5A554D;
+    border-color: #1C2126;
+    background-color: transparent;
+}
+
+/* primary — plasma. Build, Save, Apply, Export. */
+QPushButton[mindmeld="primary"] {
+    color: #7CFFB2;
+    border-color: #4FB888;
+}
+QPushButton[mindmeld="primary"]:hover {
+    background-color: rgba(124, 255, 178, 46);  /* plasma-glow (web 2.0: 0.18) */
+    border-color: #7CFFB2;
+}
+QPushButton[mindmeld="primary"]:pressed {
+    background-color: rgba(124, 255, 178, 80);
+}
+QPushButton[mindmeld="primary"]:disabled {
+    color: #5A554D;
+    border-color: #1C2126;
+}
+
+/* danger — ember. Delete, Remove, Reset. */
+QPushButton[mindmeld="danger"] {
+    color: #FF7A3D;
+    border-color: #B5532A;
+}
+QPushButton[mindmeld="danger"]:hover {
+    background-color: rgba(255, 122, 61, 56);  /* ember-glow (web 2.0: 0.22) */
+    border-color: #FF7A3D;
+}
+QPushButton[mindmeld="danger"]:pressed {
+    background-color: rgba(255, 122, 61, 80);
+}
+
+/* ghost — borderless until hover. Cancel, Browse, secondary actions.
+   Explicit transparent body: ghosts stay part of the room, exempt
+   from the two-tone lift. */
+QPushButton[mindmeld="ghost"] {
+    border-color: transparent;
+    color: #8A8378;
+    background-color: transparent;
+}
+QPushButton[mindmeld="ghost"]:hover {
+    border-color: #353D45;
+    color: #E8E0D0;
+    background-color: transparent;
+}
+
+/* icon-only — square chrome for buttons that show ONLY an icon (no text).
+   Strips the default min-width / min-height / padding so the button
+   respects setFixedSize() on a square geometry. Use with mindmeld_style.button('', kind='icon-only')
+   followed by setFixedSize(N, N) + setIconSize(...). */
+QPushButton[mindmeld="icon-only"] {
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+}
+
+/* ============================== INPUTS ============================== */
+
+QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox {
+    background-color: #262C33;
+    color: #E8E0D0;
+    border: 1px solid #353D45;
+    border-radius: 6px;
+    padding: 5px 10px;
+    selection-background-color: #4FB888;
+    selection-color: #0B0E10;
+    min-height: 16px;
+}
+
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus,
+QSpinBox:focus, QDoubleSpinBox:focus {
+    border-color: #7CFFB2;
+}
+
+QLineEdit:hover, QTextEdit:hover, QPlainTextEdit:hover,
+QSpinBox:hover, QDoubleSpinBox:hover {
+    border-color: #4FB888;
+}
+
+QLineEdit:read-only, QTextEdit:read-only, QPlainTextEdit:read-only {
+    color: #8A8378;
+    background-color: #1C2126;
+}
+
+QLineEdit:disabled, QTextEdit:disabled, QPlainTextEdit:disabled,
+QSpinBox:disabled, QDoubleSpinBox:disabled {
+    color: #5A554D;
+    background-color: #1C2126;
+    border-color: #262C33;
+}
+
+/* spinbox arrows — kept lean */
+QSpinBox::up-button, QDoubleSpinBox::up-button,
+QSpinBox::down-button, QDoubleSpinBox::down-button {
+    background: transparent;
+    border: none;
+    width: 16px;
+}
+
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+    image: none;
+    border-left: 3px solid transparent;
+    border-right: 3px solid transparent;
+    border-bottom: 4px solid #8A8378;
+    width: 0; height: 0;
+}
+QSpinBox::up-arrow:hover, QDoubleSpinBox::up-arrow:hover {
+    border-bottom-color: #7CFFB2;
+}
+
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+    image: none;
+    border-left: 3px solid transparent;
+    border-right: 3px solid transparent;
+    border-top: 4px solid #8A8378;
+    width: 0; height: 0;
+}
+QSpinBox::down-arrow:hover, QDoubleSpinBox::down-arrow:hover {
+    border-top-color: #7CFFB2;
+}
+
+/* ============================== COMBOBOX ============================== */
+
+QComboBox {
+    background-color: #262C33;
+    color: #E8E0D0;
+    border: 1px solid #353D45;
+    border-radius: 6px;
+    padding: 5px 10px;
+    padding-right: 22px;
+    min-height: 16px;
+}
+
+QComboBox:hover  { border-color: #4FB888; }
+QComboBox:focus  { border-color: #7CFFB2; }
+QComboBox:on     { border-color: #7CFFB2; }
+QComboBox:disabled {
+    color: #5A554D;
+    background-color: #1C2126;
+    border-color: #262C33;
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 18px;
+    border: none;
+    background: transparent;
+}
+
+QComboBox::down-arrow {
+    image: none;
+    border-left: 3px solid transparent;
+    border-right: 3px solid transparent;
+    border-top: 4px solid #8A8378;
+    width: 0; height: 0;
+}
+QComboBox::down-arrow:hover {
+    border-top-color: #7CFFB2;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #262C33;
+    color: #E8E0D0;
+    border: 1px solid #353D45;
+    border-radius: 6px;
+    selection-background-color: #353D45;
+    selection-color: #7CFFB2;
+    outline: 0;
+    padding: 2px 0;
+}
+
+QComboBox QAbstractItemView::item {
+    padding: 4px 10px;
+    min-height: 18px;
+}
+
+/* ============================== CHECKBOX / RADIO ============================== */
+
+QCheckBox, QRadioButton {
+    color: #E8E0D0;
+    spacing: 8px;
+    background: transparent;
+    padding: 2px 0;
+}
+
+QCheckBox:disabled, QRadioButton:disabled {
+    color: #5A554D;
+}
+
+QCheckBox::indicator, QRadioButton::indicator {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #353D45;
+    border-radius: 4px;   /* 2.0 soft square; radio overrides to a circle below */
+    background-color: #0B0E10;
+}
+
+QRadioButton::indicator {
+    border-radius: 7px;
+}
+
+QCheckBox::indicator:hover, QRadioButton::indicator:hover {
+    border-color: #4FB888;
+}
+
+QCheckBox::indicator:checked {
+    border-color: #7CFFB2;
+    background-color: #7CFFB2;
+    /* nested-square look approximated by inner shadow via border */
+    image: none;
+}
+
+QRadioButton::indicator:checked {
+    border-color: #7CFFB2;
+    background-color: #7CFFB2;
+}
+
+QCheckBox::indicator:checked:hover {
+    background-color: #7CFFB2;
+    border-color: #E8E0D0;
+}
+
+QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {
+    border-color: #262C33;
+    background-color: #1C2126;
+}
+
+/* ============================== TABS ============================== */
+
+QTabWidget::pane {
+    border: 1px solid #353D45;
+    background-color: #0B0E10;
+    top: -1px;
+}
+
+QTabBar {
+    background: transparent;
+    qproperty-drawBase: 0;
+}
+
+QTabBar::tab {
+    background: transparent;
+    color: #8A8378;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 7px 18px;
+    font-size: 10px;
+    font-weight: 500;
+    margin-right: 0;
+}
+
+QTabBar::tab:hover {
+    color: #E8E0D0;
+}
+
+/* 2.0 active pairing (dashboard topnav/tabs): ember text under a
+   plasma underline — the two accents together mark "you are here". */
+QTabBar::tab:selected {
+    color: #FF7A3D;
+    border-bottom: 2px solid #7CFFB2;
+    background-color: transparent;
+}
+
+QTabBar::tab:disabled {
+    color: #5A554D;
+}
+
+/* ============================== PROGRESS ============================== */
+
+QProgressBar {
+    background-color: #0B0E10;
+    border: 1px solid #353D45;
+    border-radius: 6px;
+    text-align: center;
+    color: #E8E0D0;
+    font-family: "JetBrains Mono", "Consolas", monospace;
+    font-weight: 500;
+    font-size: 11px;
+    min-height: 14px;
+    max-height: 16px;
+}
+
+QProgressBar::chunk {
+    background-color: #7CFFB2;
+    border-radius: 5px;
+}
+
+/* ============================== SCROLLBAR ============================== */
+
+QScrollBar:vertical {
+    background: #0B0E10;
+    width: 10px;
+    border: none;
+    margin: 0;
+}
+
+QScrollBar::handle:vertical {
+    background: #353D45;
+    min-height: 24px;
+    border: none;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #4FB888;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    background: none;
+    height: 0;
+    border: none;
+}
+
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+QScrollBar:horizontal {
+    background: #0B0E10;
+    height: 10px;
+    border: none;
+    margin: 0;
+}
+
+QScrollBar::handle:horizontal {
+    background: #353D45;
+    min-width: 24px;
+    border: none;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background: #4FB888;
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    background: none;
+    width: 0;
+    border: none;
+}
+
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: none;
+}
+
+/* ============================== LISTS / TREES / TABLES ============================== */
+
+QListWidget, QTreeWidget, QTableWidget,
+QListView, QTreeView, QTableView {
+    background-color: #262C33;
+    alternate-background-color: #262C33;
+    color: #E8E0D0;
+    border: 1px solid #353D45;
+    border-radius: 8px;
+    outline: 0;
+    selection-background-color: #1C2126;
+    selection-color: #7CFFB2;
+    gridline-color: #353D45;
+}
+
+QListWidget::item, QTreeWidget::item, QTableWidget::item,
+QListView::item, QTreeView::item, QTableView::item {
+    padding: 4px 6px;
+    border-left: 2px solid transparent;
+    border-bottom: 1px solid transparent;
+}
+
+QListWidget::item:hover, QTreeWidget::item:hover,
+QListView::item:hover, QTreeView::item:hover {
+    background-color: #1C2126;
+}
+
+QListWidget::item:selected, QTreeWidget::item:selected,
+QListView::item:selected, QTreeView::item:selected {
+    background-color: #1C2126;
+    color: #7CFFB2;
+    border-left: 2px solid #7CFFB2;
+}
+
+QHeaderView {
+    background-color: #1C2126;
+    border: none;
+}
+
+QHeaderView::section {
+    background-color: #1C2126;
+    color: #FF7A3D;
+    border: none;
+    border-right: 1px solid #353D45;
+    border-bottom: 1px solid #353D45;
+    padding: 6px 10px;
+    font-size: 10px;
+    font-weight: 500;
+}
+
+QHeaderView::section:last {
+    border-right: none;
+}
+
+QTreeView::branch {
+    background: transparent;
+}
+
+QTreeView::branch:has-children:!has-siblings:closed,
+QTreeView::branch:closed:has-children:has-siblings {
+    border-image: none;
+    image: none;
+}
+
+/* ============================== SPLITTER ============================== */
+
+QSplitter {
+    background-color: transparent;
+}
+
+QSplitter::handle {
+    background-color: #1C2126;
+}
+
+QSplitter::handle:horizontal { width: 1px; }
+QSplitter::handle:vertical { height: 1px; }
+
+QSplitter::handle:hover {
+    background-color: #4FB888;
+}
+
+/* ============================== MENU ============================== */
+
+QMenuBar {
+    background-color: #1C2126;
+    color: #E8E0D0;
+    border-bottom: 1px solid #353D45;
+}
+
+QMenuBar::item {
+    background: transparent;
+    padding: 4px 12px;
+}
+
+QMenuBar::item:selected {
+    background-color: #262C33;
+    color: #7CFFB2;
+}
+
+QMenu {
+    background-color: #1C2126;
+    color: #E8E0D0;
+    border: 1px solid #353D45;
+    border-radius: 8px;
+    padding: 4px 0;
+}
+
+QMenu::item {
+    padding: 5px 22px 5px 16px;
+}
+
+QMenu::item:selected {
+    background-color: #262C33;
+    color: #7CFFB2;
+}
+
+QMenu::item:disabled {
+    color: #5A554D;
+}
+
+QMenu::separator {
+    height: 1px;
+    background: #353D45;
+    margin: 4px 6px;
+}
+
+/* ============================== TOOLTIP ============================== */
+
+QToolTip {
+    background-color: #1C2126;
+    color: #E8E0D0;
+    border: 1px solid #353D45;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
+/* ============================== STATUSBAR / TITLEBAR (custom widgets) ============================== */
+
+QWidget[mindmeld="titlebar"] {
+    background-color: #1C2126;
+    border-bottom: 1px solid #353D45;
+}
+
+QWidget[mindmeld="statusbar"] {
+    background-color: #262C33;
+    border-top: 1px solid #353D45;
+}
+
+QLabel[mindmeld="status-seg"] {
+    color: #8A8378;
+    padding: 0 12px;
+    font-size: 11px;
+}
+QLabel[mindmeld="status-seg-ok"] {
+    color: #7CFFB2;
+    padding: 0 12px;
+    font-size: 11px;
+}
+QLabel[mindmeld="status-seg-warn"] {
+    color: #FF7A3D;
+    padding: 0 12px;
+    font-size: 11px;
+}
+QLabel[mindmeld="status-seg-faint"] {
+    color: #5A554D;
+    padding: 0 12px;
+    font-size: 11px;
+}
+
+/* ============================== STATUS PILLS ============================== */
+
+/* 2.0: soft pill shape (radius 10 on a ~20px chip). The square bracketed
+   pill is a retired 1.0 motif. */
+QLabel[mindmeld="pill-ok"] {
+    color: #7CFFB2;
+    border: 1px solid #4FB888;
+    border-radius: 10px;
+    padding: 2px 10px;
+    font-size: 10px;
+    font-weight: 500;
+    background: transparent;
+}
+QLabel[mindmeld="pill-warn"] {
+    color: #FF7A3D;
+    border: 1px solid #B5532A;
+    border-radius: 10px;
+    padding: 2px 10px;
+    font-size: 10px;
+    font-weight: 500;
+    background: transparent;
+}
+QLabel[mindmeld="pill-idle"] {
+    color: #8A8378;
+    border: 1px solid #353D45;
+    border-radius: 10px;
+    padding: 2px 10px;
+    font-size: 10px;
+    font-weight: 500;
+    background: transparent;
+}
+
+/* ============================== COLLAPSIBLE SECTION ============================== */
+/* Targets utils.qt.widgets.CollapsibleSection — selectors via objectName. */
+
+/* Compacted 2026-07-10 (Adrian, launch polish): the old 7px header
+   padding + 6px stacking margin ate too much vertical space once every
+   Properties section gained its own frame. Header stays 11px text on a
+   4px pad — readable, half the chrome. */
+CollapsibleSection {
+    background-color: transparent;
+    border: 1px solid #353D45;
+    border-radius: 7px;
+    margin-bottom: 4px;
+}
+
+CollapsibleSection > QToolButton {
+    background-color: #262C33;
+    color: #E8E0D0;
+    border: none;
+    border-bottom: 1px solid #353D45;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    padding: 4px 10px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+CollapsibleSection > QToolButton:hover {
+    background-color: #353D45;
+}
+
+CollapsibleSection > QToolButton:checked {
+    border-bottom: 1px solid #353D45;
+}
+
+/* Compact header — opt-in via CollapsibleSection(compact=True). Thinner
+   vertical padding for space-constrained stacks (e.g. the Fabricator
+   palette's three stacked sections). Additive + property-gated, so the
+   default header on every other consumer is untouched. */
+CollapsibleSection > QToolButton[mindmeld="compact-header"] {
+    padding: 2px 8px;
+    font-size: 10px;
+}
+
+/* ============================== LOGGER WIDGET ============================== */
+/* Targets utils.qt.widgets.LoggerWidget. Row colors are applied per-row in
+   logger code; this only handles the container chrome. */
+
+LoggerWidget {
+    background-color: #0B0E10;
+    border: 1px solid #353D45;
+    border-radius: 8px;
+}
+
+LoggerWidget QPlainTextEdit, LoggerWidget QTextEdit {
+    background-color: #0B0E10;
+    color: #E8E0D0;
+    border: none;
+    border-radius: 7px;
+    font-family: "JetBrains Mono", "Consolas", monospace;
+    font-size: 11px;
+    padding: 6px 10px;
+}
+
+/* ============================== DIALOG / DOCK ============================== */
+
+QDockWidget {
+    color: #E8E0D0;
+    titlebar-close-icon: none;
+    titlebar-normal-icon: none;
+}
+
+QDockWidget::title {
+    background-color: #1C2126;
+    border-bottom: 1px solid #353D45;
+    padding: 4px 10px;
+    text-align: left;
+}
+
+QDialog {
+    background-color: #0B0E10;
+}
+
+/* ============================== TOOLBAR ============================== */
+
+QToolBar {
+    background-color: #1C2126;
+    border: none;
+    border-bottom: 1px solid #353D45;
+    spacing: 4px;
+    padding: 4px;
+}
+
+QToolButton {
+    background-color: transparent;
+    color: #E8E0D0;
+    border: 1px solid transparent;
+    padding: 4px 10px;
+    font-size: 11px;
+}
+
+QToolButton:hover {
+    background-color: #262C33;
+    border: 1px solid #353D45;
+}
+
+QToolButton:pressed, QToolButton:checked {
+    background-color: #353D45;
+    color: #7CFFB2;
+    border: 1px solid #4FB888;
+}
+
+/* ===================== TOOLBAR (FabricatorStudio strip) ===================== */
+/* Compact overrides scoped to the strip; also the design system's first
+   QSlider skin (global on purpose - every future tool inherits it). */
+
+/* CP-B (Adrian, 2026-07-02): NO strip background - it inherits Maya's
+   ambient color so the tools read as native Maya UI. Removing the strip
+   rule alone is NOT enough: mindmeld_style.apply() puts the BASE QWidget
+   carbon rule on the whole tree, so the strip and its plain-QWidget group
+   boxes must be explicitly forced transparent. (The popover frame keeps
+   its own darker ID rule - higher specificity - and button hover/pressed
+   fills win via their pseudo-class specificity.) */
+QWidget#fabricator_toolbar,
+QWidget#fabricator_toolbar QWidget {
+    background-color: transparent;
+}
+
+/* Input widgets on the strip get Maya's SUNKEN field look (Adrian, 2026-07-03):
+   the transparent-everything rule above made the renamer, min/max fields and
+   project chooser blend into Maya's ambient. Maya-grey fill (NOT black), a
+   thin recessed rim, and TIGHT padding - the base rule's 5px 10px left ~1.5
+   chars visible in the 40px min/max fields. Same specificity as the
+   transparent rule, declared AFTER it, so these win. */
+QWidget#fabricator_toolbar QLineEdit,
+QWidget#fabricator_toolbar QComboBox,
+QWidget#fabricator_toolbar QSpinBox,
+QWidget#fabricator_toolbar QDoubleSpinBox {
+    background-color: #2B2B2B;
+    border: 1px solid #1E1E1E;
+    border-radius: 2px;
+    padding: 1px 3px;
+    min-height: 0px;
+    color: #E8E0D0;
+}
+QWidget#fabricator_toolbar QComboBox:hover,
+QWidget#fabricator_toolbar QLineEdit:hover,
+QWidget#fabricator_toolbar QSpinBox:hover {
+    border-color: #3A3A3A;
+}
+
+QWidget#fabricator_toolbar QPushButton {
+    min-width: 0; min-height: 0; padding: 0;
+    border: none; border-radius: 4px;
+    background-color: transparent; color: #E8E0D0;
+}
+/* Shelf-style hover (Adrian, 2026-07-03): NO darkened square - the icon
+   graphic itself brightens (IconButton enter/leave). Keep these transparent so
+   only the icon carries the hover/press state. */
+QWidget#fabricator_toolbar QPushButton:hover   { background-color: transparent; }
+QWidget#fabricator_toolbar QPushButton:pressed { background-color: transparent; }
+QWidget#fabricator_toolbar QPushButton[lit="true"] {
+    color: #7CFFB2; background-color: #1C2126;
+}
+/* Toggles show their on-state via the on/off icon pair, so drop the lit
+   square (Adrian, 2026-07-03). The Fabricator context-lit button has no
+   fs_toggle property, so it keeps its glow above. */
+QWidget#fabricator_toolbar QPushButton[fs_toggle="true"][lit="true"] {
+    background-color: transparent;
+}
+/* Labeled mode toggle (icon + text) - mirrors the Fabricator-window Symmetry
+   toggle for consistency (Adrian, 2026-07-08): plasma border + text when OFF,
+   ember border + text when ON. Only the Weight Paint toggle carries fs_labeled
+   today; icon-only toggles are unaffected. */
+QWidget#fabricator_toolbar QPushButton[fs_labeled="true"] {
+    color: #7CFFB2;
+    border: 1px solid #4FB888;
+    border-radius: 3px;
+    background-color: transparent;
+    padding: 0 6px;
+}
+QWidget#fabricator_toolbar QPushButton[fs_labeled="true"]:hover {
+    border-color: #7CFFB2;
+    background-color: transparent;
+}
+QWidget#fabricator_toolbar QPushButton[fs_labeled="true"][lit="true"] {
+    color: #FF7A3D;
+    border-color: #FF7A3D;
+    background-color: transparent;
+}
+
+/* Edit mode (Phase D drag-to-reorder): reorder.py flips the strip's
+   edit_mode dynamic property. Accent frame marks the mode; buttons dim to
+   the muted ink - they are drag handles now, not tools. */
+QWidget#fabricator_toolbar[edit_mode="true"] {
+    border: 1px solid #4FB888; border-radius: 4px;
+}
+QWidget#fabricator_toolbar[edit_mode="true"] QPushButton {
+    color: #8A8378;
+}
+
+QFrame#fabricator_toolbar_popover {
+    background-color: #1C2126; border: 1px solid #353D45; border-radius: 4px;
+}
+
+/* Popover panels use FULL-TEXT buttons (CP-B: Animo-style, not 26px chips) -
+   this later rule outranks the compact strip override above. */
+/* Two-tone (2.0 law): these scoped rules out-specify the plain
+   QPushButton rules above, so the lift is restated here — popover
+   buttons wear exactly what window buttons wear (iron_2 body,
+   iron_3 + plasma-dim hover, iron pressed) on the frame's iron
+   room. */
+QFrame#fabricator_toolbar_popover QPushButton {
+    min-height: 0; padding: 4px 12px; text-align: left;
+    border: 1px solid #353D45; border-radius: 3px;
+    background-color: #262C33; color: #E8E0D0;
+}
+QFrame#fabricator_toolbar_popover QPushButton:hover {
+    background-color: #353D45; border-color: #4FB888;
+}
+QFrame#fabricator_toolbar_popover QPushButton:pressed { background-color: #1C2126; }
+
+/* Movable-panel chrome (CP-B round 2): slim drag-bar title + x close. */
+QLabel#fabricator_popover_title {
+    color: #8A8378; font-size: 11px; background: transparent;
+}
+/* MUST be scoped under the frame id: the generic
+   'QFrame#fabricator_toolbar_popover QPushButton' rule above (padding 4px 12px)
+   out-specifies a bare 'QPushButton#id', so an unscoped close rule lost its
+   padding:0 and the 4px/12px padding clipped the X clean out of the 18px
+   button - it read as blank (Adrian, 2026-07-03). Scoping wins specificity. */
+QFrame#fabricator_toolbar_popover QPushButton#fabricator_popover_close {
+    min-width: 0; min-height: 0; padding: 0; text-align: center;
+    border: none; border-radius: 3px; color: #FF7A3D;   /* ember: readable X */
+    font-weight: bold; font-size: 15px;
+}
+QFrame#fabricator_toolbar_popover QPushButton#fabricator_popover_close:hover {
+    background-color: #262C33; color: #FFA06B;
+}
+/* Expand-to-full-tool button (item 3, 2026-07-03): standard maximize icon,
+   so no display-font glyph gap. Same frame-scoped specificity as close. */
+QFrame#fabricator_toolbar_popover QPushButton#fabricator_popover_expand {
+    min-width: 0; min-height: 0; padding: 0;
+    border: none; border-radius: 3px;
+}
+QFrame#fabricator_toolbar_popover QPushButton#fabricator_popover_expand:hover {
+    background-color: #262C33;
+}
+/* Fabricator contextual Build (green/plasma) vs Unbuild (orange/ember),
+   item 4, 2026-07-03. */
+QFrame#fabricator_toolbar_popover QPushButton#fs_build {
+    color: #7CFFB2; border-color: #4FB888;
+}
+QFrame#fabricator_toolbar_popover QPushButton#fs_build:hover {
+    background-color: rgba(124, 255, 178, 46);  /* plasma-glow */
+}
+QFrame#fabricator_toolbar_popover QPushButton#fs_unbuild {
+    color: #FF7A3D; border-color: #B5532A;
+}
+QFrame#fabricator_toolbar_popover QPushButton#fs_unbuild:hover {
+    background-color: rgba(255, 122, 61, 56);   /* ember-glow */
+}
+/* Destructive action (Delete Constraints, item 3): ember to flag it. */
+QFrame#fabricator_toolbar_popover QPushButton#fs_danger {
+    color: #FF7A3D; border-color: #B5532A;
+}
+QFrame#fabricator_toolbar_popover QPushButton#fs_danger:hover {
+    background-color: rgba(255, 122, 61, 56);   /* ember-glow */
+}
+
+/* Frameless window shell (2026-07-05, frameless.py): full tool windows
+   drop the OS title bar to match the popover look. The 1px iron border
+   stands in for the lost frame edge; the X is the popover close,
+   full-size; the corner grip gives back resize without native edges. */
+*[mindmeld="frameless"] {
+    border: 1px solid #353D45;
+}
+QPushButton#mm_window_close {
+    min-width: 0; min-height: 0; padding: 0; text-align: center;
+    border: none; border-radius: 3px;
+    background: transparent; color: #FF7A3D;    /* ember: readable X */
+    font-weight: bold; font-size: 15px;
+}
+QPushButton#mm_window_close:hover {
+    background-color: #262C33; color: #FFA06B;
+}
+QSizeGrip {
+    background: transparent; image: none;
+}
+
+/* Fabricator chrome — 2026-07-05 brain dump. */
+/* Item 7: palette / canvas / properties sit apart — the handle is a
+   15px invisible gap (carbon shows through; Adrian sized it up from
+   9px) that reveals an iron_2 band under the cursor. Scoped: other
+   splitters keep the 1px line. */
+QSplitter#fab_splitter::handle:horizontal {
+    width: 15px; background-color: transparent;
+}
+QSplitter#fab_splitter::handle:horizontal:hover {
+    background-color: #262C33;
+}
+/* Item 7: the two panel search inputs share one compact height
+   (tagged mindmeld="search" in palette_panel / canvas_panel). */
+QLineEdit[mindmeld="search"] {
+    padding: 4px 10px;
+}
+/* Item 9: Properties empty state — dresses like the list/tree room
+   so the three panels read as one family when nothing is selected. */
+QFrame[mindmeld="empty-state"] {
+    background-color: #262C33; border: 1px solid #353D45;
+}
+QFrame[mindmeld="empty-state"] QLabel {
+    color: #8A8378; background: transparent; border: none;
+}
+/* Item 10: brand-row File button (folder icon, InstantPopup menu). */
+QToolButton#fab_file_btn {
+    background: transparent; border: none; border-radius: 3px;
+    padding: 2px;
+}
+QToolButton#fab_file_btn:hover { background-color: #262C33; }
+QToolButton#fab_file_btn::menu-indicator { image: none; }
+
+QSlider::groove:horizontal {
+    height: 4px; background: #262C33; border-radius: 2px;
+}
+QSlider::handle:horizontal {
+    width: 10px; margin: -4px 0; border-radius: 5px; background: #7CFFB2;
+}
+QSlider::handle:horizontal:hover { background: #4FB888; }
+QSlider::groove:vertical {
+    width: 4px; background: #262C33; border-radius: 2px;
+}
+QSlider::handle:vertical {
+    height: 10px; margin: 0 -4px; border-radius: 5px; background: #7CFFB2;
+}
