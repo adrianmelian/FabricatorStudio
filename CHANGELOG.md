@@ -7,6 +7,26 @@ Format: `## [date] — short title` then bullet points. Keep entries brief.
 
 ---
 
+## [2026-07-21] — v1.0.1: first-install fixes
+
+First patch after launch, from the first outside installs.
+
+- **AutoSkin backend installs without dev tooling** (#22): the engine installer
+  used to demand `uv` and `git` already be on the machine and hard-fail
+  otherwise, which broke on a fresh artist box. It now resolves each tool as
+  private-copy-first, then PATH, then a pinned, hash-verified download, so a
+  clean machine installs with nothing pre-set-up.
+- **AutoSkin uninstall cleans up fully on Windows** (#23): uninstalling the
+  backend left its `repo/` folder (about 1.6 GB of model checkpoints) behind,
+  because git marks its files read-only. Uninstall now clears the read-only bit
+  and removes everything it owns.
+- **Project bindings live in Project Setup now**: the per-project binding
+  settings and the machine-wide Shared Configs pointer moved out of Settings and
+  into Project Setup, next to the project list they belong with. Settings keeps
+  only the truly per-machine concerns.
+
+---
+
 ## [2026-07-19] — Installer choice + the first-welcome tour
 
 - **Installer**: choose the Install Directory (defaults to Maya's own scripts
