@@ -223,18 +223,54 @@ def test_list_projects_with_status_triage():
         assert rows["derived_p"]["bound"] and rows["derived_p"]["derived"], rows
 
 
+def test_binding_status_green_when_both_roots_resolve():
+    from maya_tools.framework import settings_app
+    with tempfile.TemporaryDirectory() as td, maya_app_dir(td):
+        _make_project("demo")
+        with tempfile.TemporaryDirectory() as art, tempfile.TemporaryDirectory() as game:
+            settings_app.bind_project("demo", {"source_art_root": art,
+                                               "content_root": game})
+            status = settings_app.binding_status("demo")
+            assert status == {"state": "green", "reason": ""}, status
+
+
+def test_binding_status_orange_missing_when_root_moved():
+    from maya_tools.framework import settings_app
+    with tempfile.TemporaryDirectory() as td, maya_app_dir(td):
+        _make_project("demo")
+        with tempfile.TemporaryDirectory() as art:
+            missing = str(Path(art) / "moved_away")
+            settings_app.bind_project("demo", {"source_art_root": art,
+                                               "content_root": missing})
+            status = settings_app.binding_status("demo")
+            assert status["state"] == "orange", status
+            assert status["reason"] == f"missing:{missing}", status
+
+
+def test_binding_status_orange_unbound_when_roots_empty():
+    from maya_tools.framework import settings_app
+    with tempfile.TemporaryDirectory() as td, maya_app_dir(td):
+        _make_project("demo")
+        status = settings_app.binding_status("demo")
+        assert status == {"state": "orange", "reason": "unbound"}, status
+
+
 def test_integration_prefs_roundtrip():
     from maya_tools.framework import settings_app
     from maya_tools.framework.toolbar import toolbar_prefs
     with tempfile.TemporaryDirectory() as td, maya_app_dir(td):
         prefs = settings_app.integration_prefs()
-        assert prefs == {"load_menu": True, "load_shelf": True,
+        # menu/shelf default OFF (toolbar_prefs._DEFAULTS, 2026-07-20
+        # installer-polish change): a fresh install shouldn't scatter a menu
+        # and two shelf tabs across Maya uninvited; hotkeys/marking menu
+        # stay on (no visual clutter).
+        assert prefs == {"load_menu": False, "load_shelf": False,
                          "load_hotkeys": True, "anim_marking_menu": True}, prefs
         settings_app.set_integration_pref("load_shelf", False)
         assert settings_app.integration_prefs()["load_shelf"] is False
         # Persisted in the unified prefs file, other keys intact.
         on_disk = toolbar_prefs.load_prefs()
-        assert on_disk["load_shelf"] is False and on_disk["load_menu"] is True
+        assert on_disk["load_shelf"] is False and on_disk["load_menu"] is False
         assert on_disk["dock_mode"] == "bottom", on_disk
         try:
             settings_app.set_integration_pref("nope", True)
@@ -270,6 +306,9 @@ if __name__ == "__main__":
     check("pointer_env_wins", test_pointer_env_wins)
     check("pointer_set_nonexistent_raises_no_write", test_pointer_set_nonexistent_raises_no_write)
     check("list_projects_with_status_triage", test_list_projects_with_status_triage)
+    check("binding_status_green_when_both_roots_resolve", test_binding_status_green_when_both_roots_resolve)
+    check("binding_status_orange_missing_when_root_moved", test_binding_status_orange_missing_when_root_moved)
+    check("binding_status_orange_unbound_when_roots_empty", test_binding_status_orange_unbound_when_roots_empty)
     check("integration_prefs_roundtrip", test_integration_prefs_roundtrip)
     check("integration_gates_skip_headless", test_integration_gates_skip_headless)
     print(f"\n{len(FAILURES)} FAILs")

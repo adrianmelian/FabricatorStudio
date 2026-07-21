@@ -49,6 +49,12 @@ TOKENS = {
     # tints tuned to sit beside ember without clashing.
     "flare": "#FF5C5C",
     "amber": "#FFC857",
+    # magma (brand tertiary #FF3B3B, ratified 2026-07-17): promoted to the
+    # danger/destructive/error red on 2026-07-20 (Adrian vetoed the DNA's
+    # code-only reservation - red = delete/error). magma_dim = hover/border.
+    "magma":      "#FF3B3B",
+    "magma_dim":  "#B52A2A",
+    "magma_glow": "rgba(255, 59, 59, 56)",
     # type — Mindmeld 2.0 (2026-07-13): one family, JetBrains Mono. Display is
     # the BOLD weight set large (the outlined tri-color treatment lives in the
     # banner PNGs, not in QSS text). VT323 is RETIRED per the brand DNA.
@@ -74,6 +80,8 @@ PLASMA_DIM = TOKENS["plasma_dim"]
 EMBER_DIM = TOKENS["ember_dim"]
 FLARE = TOKENS["flare"]
 AMBER = TOKENS["amber"]
+MAGMA = TOKENS["magma"]
+MAGMA_DIM = TOKENS["magma_dim"]
 
 
 # ============================================================

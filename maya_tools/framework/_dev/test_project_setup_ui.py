@@ -15,6 +15,7 @@ checks (gc.collect() first, then DeferredDelete) avoids the exit-127/139
 crashes documented there."""
 import contextlib
 import importlib
+import json
 import os
 import sys
 import tempfile
@@ -838,16 +839,11 @@ def test_existing_projects_excludes_the_slug_being_edited():
             dlg.close()
 
 
-def test_configs_root_readout_reflects_env_override():
-    # Integration point with Plan 4: this asserts the actual SHARED path text,
-    # not just the "[SHARED]" tag - _configs_root_text() derives `root` from
-    # project_config_paths.configs_dir(), and it is Plan 4's configs_dir() that
-    # must honor FABRICATOR_PROJECT_CONFIGS for `root` to actually equal the
-    # shared dir. Ordering dependency: this check only holds once Plan 4 is
-    # merged onto this branch - if it regresses (or runs before Plan 4 lands),
-    # this fails with the SHARED path missing from the label even though the
-    # "[SHARED]" tag still shows (the tag is driven by the env var being set,
-    # independent of whether configs_dir() actually honors it).
+def test_configs_panel_present():
+    """Phase 1b: the Shared Project Configs pointer moved from Settings into
+    Mindmeld - present as an editable panel (read-only line edit + Browse +
+    Use Local Default + status/helper), driven by settings_app. (Positioned
+    below the project list, above VALIDATION, since 2026-07-20.)"""
     qt_app()
     with tempfile.TemporaryDirectory() as td:
         with maya_app_dir(td):
@@ -855,14 +851,81 @@ def test_configs_root_readout_reflects_env_override():
             importlib.reload(ui)
             ui.project_setup_app.list_projects = lambda: []
             dlg = ui.ProjectSetupUI()
-            assert "[LOCAL]" in dlg.configs_root_label.text()
+            assert dlg.configs_root_edit.isReadOnly()
+            assert "LOCAL DEFAULT" in dlg.configs_status_label.text()
+            assert not dlg.configs_local_btn.isEnabled()
+            helper_texts = [lbl.text() for lbl in dlg.findChildren(ui.QtWidgets.QLabel)
+                            if lbl.property("mindmeld") == "helper"]
+            assert ("Where this machine reads project definitions from. Set "
+                    "once; teams point this at a shared location.") in helper_texts, \
+                helper_texts
+            dlg.close()
+
+
+def test_configs_browse_sets_pointer_and_repopulates_project_list():
+    """Browse persists the pointer via settings_app.set_configs_root and
+    re-populate()s so the project list re-reads the new configs root."""
+    qt_app()
+    with tempfile.TemporaryDirectory() as td:
+        with maya_app_dir(td):
+            import maya_tools.framework.project_setup_ui as ui
+            importlib.reload(ui)
+            shared = Path(td) / "shared"
+            shared.mkdir()
+            calls = {"n": 0}
+            real_list_projects = ui.project_setup_app.list_projects
+
+            def _list_projects():
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    return []
+                return [_fake_project("teamproj", "Team Project")]
+            ui.project_setup_app.list_projects = _list_projects
+            dlg = ui.ProjectSetupUI()
+            assert dlg.project_list.count() == 0
+            with patched(ui.QtWidgets.QFileDialog, "getExistingDirectory",
+                         staticmethod(lambda *a, **k: str(shared))):
+                dlg.configs_browse_btn.click()
+            data = json.loads((ui.project_config_resolve.user_dir() /
+                               "settings.json").read_text(encoding="utf-8"))
+            assert data["configs_root"] == str(shared).replace("\\", "/"), data
+            assert dlg.configs_root_edit.text() == str(shared).replace("\\", "/")
+            assert dlg.project_list.count() == 1   # repopulated from the new root
+            ui.project_setup_app.list_projects = real_list_projects
+            dlg.close()
+
+
+def test_configs_use_local_default_clears_pointer():
+    qt_app()
+    with tempfile.TemporaryDirectory() as td:
+        with maya_app_dir(td):
+            import maya_tools.framework.project_setup_ui as ui
+            importlib.reload(ui)
+            ui.project_setup_app.list_projects = lambda: []
+            shared = Path(td) / "shared"
+            shared.mkdir()
+            ui.settings_app.set_configs_root(str(shared))
+            dlg = ui.ProjectSetupUI()
+            assert "POINTER" in dlg.configs_status_label.text()
+            dlg.configs_local_btn.click()
+            assert "LOCAL DEFAULT" in dlg.configs_status_label.text()
+            dlg.close()
+
+
+def test_configs_env_override_disables_browse():
+    qt_app()
+    with tempfile.TemporaryDirectory() as td:
+        with maya_app_dir(td):
+            import maya_tools.framework.project_setup_ui as ui
+            importlib.reload(ui)
+            ui.project_setup_app.list_projects = lambda: []
             shared_dir = str(Path(td) / "shared")
             os.environ["FABRICATOR_PROJECT_CONFIGS"] = shared_dir
             try:
-                dlg.populate()
-                text = dlg.configs_root_label.text()
-                assert "[SHARED]" in text
-                assert shared_dir.replace("\\", "/") in text.replace("\\", "/")
+                dlg = ui.ProjectSetupUI()
+                assert "ENV VAR" in dlg.configs_status_label.text()
+                assert not dlg.configs_browse_btn.isEnabled()
+                assert not dlg.configs_local_btn.isEnabled()
             finally:
                 os.environ.pop("FABRICATOR_PROJECT_CONFIGS", None)
             dlg.close()
@@ -918,20 +981,25 @@ def test_save_edit_calls_edit_project_with_slug():
             importlib.reload(ui)
             ui.project_setup_app.list_projects = lambda: [{"slug": "hero", "name": "Hero", "engine": "unreal5"}]
             ui.project_config_io.load_project = lambda slug: {"name": "Hero", "engine": "unreal5"}
-            ui.project_config_resolve.load_bindings = lambda slug: {
-                "source_art_root": "C:/Demo/Art", "content_root": "C:/Demo/Game",
-                "pose_library_root_override": "", "anim_library_root_override": "",
-                "blueprints_dir_override": ""}
             ui.config_validation.validate_config = lambda authored, existing_projects=None: []
             edited = []
             ui.project_setup_app.edit_project = lambda slug, authored, bindings: edited.append((slug, authored, bindings)) or Path("/configs/hero")
             ui.project_scaffold.candidate_dirs = lambda resolved: []
-            dlg = ui.ProjectSetupUI()
-            dlg.project_list.setCurrentRow(0)
-            dlg._on_edit()
-            dlg._on_save()
-            assert edited and edited[0][0] == "hero"
-            dlg.close()
+            # project_config_resolve is never reloaded by ui's own reload block
+            # (only project_setup_app/settings_app are), so a bare assignment here
+            # would leak this stub into EVERY later test's real get_bindings/
+            # load_bindings calls for the rest of the process - go through
+            # patched() (see its docstring) so it is restored on exit.
+            with patched(ui.project_config_resolve, "load_bindings", lambda slug: {
+                    "source_art_root": "C:/Demo/Art", "content_root": "C:/Demo/Game",
+                    "pose_library_root_override": "", "anim_library_root_override": "",
+                    "blueprints_dir_override": ""}):
+                dlg = ui.ProjectSetupUI()
+                dlg.project_list.setCurrentRow(0)
+                dlg._on_edit()
+                dlg._on_save()
+                assert edited and edited[0][0] == "hero"
+                dlg.close()
 
 
 def test_save_blocked_and_issues_shown_on_error():
@@ -980,6 +1048,379 @@ def test_save_offers_scaffold_checklist_and_creates_checked_dirs():
             dlg.close()
 
 
+def test_selecting_project_populates_editable_bindings_view():
+    """Phase 3: selecting a row loads that project's bindings, EDITABLE,
+    on the right via settings_app.get_bindings."""
+    qt_app()
+    with tempfile.TemporaryDirectory() as td:
+        with maya_app_dir(td):
+            import maya_tools.framework.project_setup_ui as ui
+            importlib.reload(ui)
+            ui.project_setup_app.list_projects = lambda: [
+                _fake_project("hero", "Hero"), _fake_project("sidekick", "Sidekick")]
+            fixture = {
+                "hero": {"source_art_root": "C:/Art/Hero", "content_root": "C:/Game/Hero",
+                        "pose_library_root_override": "C:/Art/Hero/Poses",
+                        "anim_library_root_override": "", "blueprints_dir_override": ""},
+                "sidekick": {},
+            }
+            ui.settings_app.get_bindings = lambda slug: fixture[slug]
+            dlg = ui.ProjectSetupUI()
+            for edit in (dlg.bindings_source_edit, dlg.bindings_content_edit,
+                        dlg.bindings_pose_override_edit, dlg.bindings_anim_override_edit,
+                        dlg.bindings_blueprints_override_edit):
+                assert not edit.isReadOnly()
+            dlg.project_list.setCurrentRow(0)
+            assert dlg.bindings_source_edit.text() == "C:/Art/Hero"
+            assert dlg.bindings_content_edit.text() == "C:/Game/Hero"
+            assert dlg.bindings_pose_override_edit.text() == "C:/Art/Hero/Poses"
+            assert not dlg._bindings_dirty            # a fresh load is never dirty
+            dlg.project_list.setCurrentRow(1)
+            assert dlg.bindings_source_edit.text() == ""
+            assert dlg.bindings_content_edit.text() == ""
+            dlg.close()
+
+
+def test_bindings_browse_sets_field_and_marks_dirty():
+    qt_app()
+    with tempfile.TemporaryDirectory() as td:
+        with maya_app_dir(td):
+            import maya_tools.framework.project_setup_ui as ui
+            importlib.reload(ui)
+            ui.project_setup_app.list_projects = lambda: [_fake_project("hero", "Hero")]
+            ui.settings_app.get_bindings = lambda slug: {}
+            dlg = ui.ProjectSetupUI()
+            dlg.project_list.setCurrentRow(0)
+            with patched(ui.QtWidgets.QFileDialog, "getExistingDirectory",
+                         staticmethod(lambda *a, **k: "C:/Demo/Art")):
+                dlg.bindings_source_browse_btn.click()
+            assert dlg.bindings_source_edit.text() == "C:/Demo/Art"
+            assert dlg._bindings_dirty
+            dlg.close()
+
+
+def test_bindings_validation_disables_and_enables_bind():
+    """Inline validation: untouched+empty = no noisy errors (Bind stays
+    disabled quietly); an invalid entry disables Bind with a visible
+    error; a valid pair of roots enables it."""
+    qt_app()
+    with tempfile.TemporaryDirectory() as td:
+        with maya_app_dir(td):
+            import maya_tools.framework.project_setup_ui as ui
+            importlib.reload(ui)
+            ui.project_setup_app.list_projects = lambda: [_fake_project("hero", "Hero")]
+            ui.settings_app.get_bindings = lambda slug: {}
+            dlg = ui.ProjectSetupUI()
+            dlg.project_list.setCurrentRow(0)
+            assert not dlg.bindings_bind_btn.isEnabled()
+            assert not dlg.validation_logger._buffer          # no noise on a fresh unbound select
+
+            dlg.bindings_content_edit.setText("relative/not/absolute")
+            assert not dlg.bindings_bind_btn.isEnabled()
+            assert any(lvl == "ERROR" for _, lvl, _ in dlg.validation_logger._buffer)
+
+            dlg.bindings_source_edit.setText("C:/Art/Hero")
+            dlg.bindings_content_edit.setText("C:/Game/Hero")
+            assert dlg.bindings_bind_btn.isEnabled()
+            dlg.close()
+
+
+def test_bindings_revert_reloads_persisted_and_clears_dirty():
+    qt_app()
+    with tempfile.TemporaryDirectory() as td:
+        with maya_app_dir(td):
+            import maya_tools.framework.project_setup_ui as ui
+            importlib.reload(ui)
+            ui.project_setup_app.list_projects = lambda: [_fake_project("hero", "Hero")]
+            ui.settings_app.get_bindings = lambda slug: {
+                "source_art_root": "C:/Art/Hero", "content_root": "C:/Game/Hero",
+                "pose_library_root_override": "", "anim_library_root_override": "",
+                "blueprints_dir_override": ""}
+            dlg = ui.ProjectSetupUI()
+            dlg.project_list.setCurrentRow(0)
+            dlg.bindings_source_edit.setText("C:/Somewhere/Else")
+            assert dlg._bindings_dirty
+            dlg._on_bindings_revert()
+            assert dlg.bindings_source_edit.text() == "C:/Art/Hero"
+            assert not dlg._bindings_dirty
+            dlg.close()
+
+
+def test_switching_selection_with_dirty_edits_logs_discard_note():
+    qt_app()
+    with tempfile.TemporaryDirectory() as td:
+        with maya_app_dir(td):
+            import maya_tools.framework.project_setup_ui as ui
+            importlib.reload(ui)
+            ui.project_setup_app.list_projects = lambda: [
+                _fake_project("hero", "Hero"), _fake_project("sidekick", "Sidekick")]
+            ui.settings_app.get_bindings = lambda slug: {}
+            dlg = ui.ProjectSetupUI()
+            dlg.project_list.setCurrentRow(0)
+            dlg.bindings_source_edit.setText("C:/Unsaved")
+            assert dlg._bindings_dirty
+            dlg.project_list.setCurrentRow(1)
+            messages = [msg for _, _, msg in dlg.logger._buffer]
+            assert any("hero" in m and "discard" in m.lower() for m in messages), messages
+            assert not dlg._bindings_dirty         # the new (sidekick) load is clean
+            dlg.close()
+
+
+def test_bind_recomputes_row_and_pill_status_and_keeps_selection():
+    """The app-facade-mocked wiring test: Bind calls settings_app.bind_project,
+    then the row pill and the right-pane status pill both flip live, and the
+    selected project stays selected."""
+    qt_app()
+    with tempfile.TemporaryDirectory() as td:
+        with maya_app_dir(td):
+            import maya_tools.framework.project_setup_ui as ui
+            importlib.reload(ui)
+            ui.project_setup_app.list_projects = lambda: [_fake_project("hero", "Hero")]
+            state = {"bound": False}
+
+            def _get_bindings(slug):
+                if state["bound"]:
+                    return {"source_art_root": "C:/Art", "content_root": "C:/Game",
+                            "pose_library_root_override": "",
+                            "anim_library_root_override": "",
+                            "blueprints_dir_override": ""}
+                return {}
+
+            def _binding_status(slug):
+                return ({"state": "green", "reason": ""} if state["bound"]
+                        else {"state": "orange", "reason": "unbound"})
+
+            bound_calls = []
+
+            def _bind_project(slug, bindings):
+                bound_calls.append((slug, bindings))
+                state["bound"] = True
+                return Path("/x")
+
+            ui.settings_app.get_bindings = _get_bindings
+            ui.settings_app.binding_status = _binding_status
+            ui.settings_app.bind_project = _bind_project
+            dlg = ui.ProjectSetupUI()
+            dlg.project_list.setCurrentRow(0)
+            assert dlg.bindings_status_pill.text() == "UNBOUND"
+            dlg.bindings_source_edit.setText("C:/Art")
+            dlg.bindings_content_edit.setText("C:/Game")
+            dlg._on_bindings_bind()
+            assert bound_calls and bound_calls[0][0] == "hero"
+            assert bound_calls[0][1]["source_art_root"] == "C:/Art"
+            assert dlg.bindings_status_pill.text() == "BOUND"
+            assert dlg._selected_slug() == "hero"          # selection kept
+            item = dlg.project_list.item(0)
+            assert item.foreground().color().name() == ui.QtGui.QColor(
+                ui.mindmeld_style.PLASMA).name()
+            assert "BOUND" in item.text() and "UNBOUND" not in item.text()
+            dlg.close()
+
+
+def test_bind_writes_local_bindings_and_leaves_shared_pair_untouched():
+    """Real end-to-end persistence (no settings_app mocking): editing the
+    right-pane roots and clicking Bind writes _user/<slug>.json, and the
+    project's session.json (the shared pair) is byte-for-byte and
+    mtime-for-mtime untouched across the Bind - bind_project only ever
+    opens project_config_resolve.save_bindings, never save_project."""
+    qt_app()
+    with tempfile.TemporaryDirectory() as td:
+        with maya_app_dir(td):
+            import maya_tools.framework.project_setup_ui as ui
+            importlib.reload(ui)
+            ui.project_config_io.save_project(
+                {"name": "Hero", "engine": "unreal5"}, overwrite=False)
+            session_path = (ui.project_config_io.project_config_paths.configs_dir()
+                            / "hero" / "session.json")
+            before_bytes = session_path.read_bytes()
+            before_mtime = session_path.stat().st_mtime_ns
+
+            dlg = ui.ProjectSetupUI()
+            dlg.project_list.setCurrentRow(0)
+            with tempfile.TemporaryDirectory() as art, tempfile.TemporaryDirectory() as game:
+                dlg.bindings_source_edit.setText(art.replace("\\", "/"))
+                dlg.bindings_content_edit.setText(game.replace("\\", "/"))
+                assert dlg.bindings_bind_btn.isEnabled()
+                dlg._on_bindings_bind()
+                got = ui.settings_app.get_bindings("hero")
+                assert got["source_art_root"] == art.replace("\\", "/")
+                assert got["content_root"] == game.replace("\\", "/")
+            dlg.close()
+
+            after_bytes = session_path.read_bytes()
+            after_mtime = session_path.stat().st_mtime_ns
+            assert after_bytes == before_bytes
+            assert after_mtime == before_mtime
+
+
+def test_bind_succeeds_when_shared_configs_root_is_read_only():
+    """Read-only-configs regression: simulate a read-only shared configs
+    root (any attempt to write the shared pair raises) and confirm Bind
+    still succeeds - proving the right pane's Bind path never opens
+    project_config_io.save_project / project_setup_app.create_project /
+    edit_project, only the local-only settings_app.bind_project."""
+    qt_app()
+    with tempfile.TemporaryDirectory() as td:
+        with maya_app_dir(td):
+            import maya_tools.framework.project_setup_ui as ui
+            importlib.reload(ui)
+            ui.project_config_io.save_project(
+                {"name": "Hero", "engine": "unreal5"}, overwrite=False)
+
+            def _boom(*_a, **_k):
+                raise ui.project_config_io.ReadOnlyConfigError(
+                    "simulated read-only shared configs root")
+
+            with patched(ui.project_config_io, "save_project", _boom), \
+                 patched(ui.project_setup_app, "create_project", _boom), \
+                 patched(ui.project_setup_app, "edit_project", _boom):
+                dlg = ui.ProjectSetupUI()
+                dlg.project_list.setCurrentRow(0)
+                with tempfile.TemporaryDirectory() as art, tempfile.TemporaryDirectory() as game:
+                    art_slash = art.replace("\\", "/")
+                    game_slash = game.replace("\\", "/")
+                    dlg.bindings_source_edit.setText(art_slash)
+                    dlg.bindings_content_edit.setText(game_slash)
+                    dlg._on_bindings_bind()
+                got = ui.settings_app.get_bindings("hero")
+                assert got["source_art_root"] == art_slash
+                assert got["content_root"] == game_slash
+                dlg.close()
+
+
+def test_row_status_colors_green_for_resolving_roots_orange_otherwise():
+    """Phase 2 (re-verified after the plain-text-row port): project_list
+    rows carry status via foreground color - green (mindmeld_style.PLASMA,
+    the same hex the pill-ok text uses) when both roots resolve on disk,
+    orange (mindmeld_style.EMBER, same hex as pill-warn) otherwise (unbound
+    or moved) - plus a plain-text BOUND/UNBOUND token so the row reads
+    without relying on color alone."""
+    qt_app()
+    with tempfile.TemporaryDirectory() as td:
+        with maya_app_dir(td):
+            import maya_tools.framework.project_setup_ui as ui
+            importlib.reload(ui)
+            with tempfile.TemporaryDirectory() as art, tempfile.TemporaryDirectory() as game:
+                statuses = {
+                    "bound_p": {"state": "green", "reason": ""},
+                    "unbound_p": {"state": "orange", "reason": "unbound"},
+                }
+                ui.project_setup_app.list_projects = lambda: [
+                    _fake_project("bound_p", "Bound"), _fake_project("unbound_p", "Unbound")]
+                ui.settings_app.binding_status = lambda slug: statuses[slug]
+                dlg = ui.ProjectSetupUI()
+                rows = {}
+                for row in range(dlg.project_list.count()):
+                    item = dlg.project_list.item(row)
+                    rows[item.data(ui.QtCore.Qt.ItemDataRole.UserRole)] = item
+                green = ui.QtGui.QColor(ui.mindmeld_style.PLASMA).name()
+                orange = ui.QtGui.QColor(ui.mindmeld_style.EMBER).name()
+                assert rows["bound_p"].foreground().color().name() == green
+                assert "BOUND" in rows["bound_p"].text()
+                assert "UNBOUND" not in rows["bound_p"].text()
+                assert rows["unbound_p"].foreground().color().name() == orange
+                assert "UNBOUND" in rows["unbound_p"].text()
+                dlg.close()
+
+
+def test_empty_selection_shows_placeholder_right_pane():
+    qt_app()
+    with tempfile.TemporaryDirectory() as td:
+        with maya_app_dir(td):
+            import maya_tools.framework.project_setup_ui as ui
+            importlib.reload(ui)
+            ui.project_setup_app.list_projects = lambda: []
+            dlg = ui.ProjectSetupUI()
+            assert dlg.project_list.currentItem() is None
+            assert dlg.bindings_source_edit.text() == ""
+            assert dlg.bindings_status_pill.property("mindmeld") == "pill-idle"
+            dlg.close()
+
+
+def test_derived_bindings_show_helper_label_and_prefill_without_persisting():
+    """Phase 4: a v1-derived project (no persisted _user/<slug>.json, but
+    derive_v1_bindings yields roots) pre-fills the right pane AND shows the
+    derived helper label. The pre-fill is a suggestion, never auto-committed -
+    selecting the row must not write _user/<slug>.json."""
+    qt_app()
+    with tempfile.TemporaryDirectory() as td:
+        with maya_app_dir(td):
+            import maya_tools.framework.project_setup_ui as ui
+            importlib.reload(ui)
+            ui.project_setup_app.list_projects = lambda: [_fake_project("legacy", "Legacy")]
+            derived = {"source_art_root": "C:/V1/Art", "content_root": "C:/V1/Art",
+                       "pose_library_root_override": "", "anim_library_root_override": "",
+                       "blueprints_dir_override": ""}
+            with patched(ui.project_config_resolve, "load_bindings", lambda slug: None), \
+                 patched(ui.project_config_io, "derive_v1_bindings", lambda slug: dict(derived)):
+                dlg = ui.ProjectSetupUI()
+                dlg.project_list.setCurrentRow(0)
+                assert dlg.bindings_source_edit.text() == "C:/V1/Art"
+                assert dlg.bindings_content_edit.text() == "C:/V1/Art"
+                # dlg is never .show()'d in this suite, so QWidget.isVisible()
+                # (which also reflects the top-level's own on-screen state)
+                # would read False regardless of setVisible(); isVisibleTo()
+                # checks only the widget's own flag and intermediate
+                # ancestors, ignoring dlg's un-shown top-level state.
+                assert dlg.bindings_derived_label.isVisibleTo(dlg)
+                assert "Derived from the v1 config" in dlg.bindings_derived_label.text()
+                user_dir = ui.project_config_resolve.user_dir()
+                assert not (user_dir / "legacy.json").exists(), \
+                    "selecting a derived project must never write persisted bindings"
+                dlg.close()
+
+
+def test_persisted_bindings_hide_the_derived_label():
+    """A project with real persisted bindings never shows the derived
+    affordance, even though derive_v1_bindings would also happily produce
+    something for it (persisted always wins)."""
+    qt_app()
+    with tempfile.TemporaryDirectory() as td:
+        with maya_app_dir(td):
+            import maya_tools.framework.project_setup_ui as ui
+            importlib.reload(ui)
+            ui.project_setup_app.list_projects = lambda: [_fake_project("hero", "Hero")]
+            persisted = {"source_art_root": "C:/Real/Art", "content_root": "C:/Real/Game",
+                        "pose_library_root_override": "", "anim_library_root_override": "",
+                        "blueprints_dir_override": ""}
+            with patched(ui.project_config_resolve, "load_bindings", lambda slug: dict(persisted)), \
+                 patched(ui.project_config_io, "derive_v1_bindings",
+                         lambda slug: {"source_art_root": "C:/Ignored"}):
+                dlg = ui.ProjectSetupUI()
+                dlg.project_list.setCurrentRow(0)
+                assert dlg.bindings_source_edit.text() == "C:/Real/Art"
+                assert not dlg.bindings_derived_label.isVisibleTo(dlg)
+                dlg.close()
+
+
+def test_empty_project_list_shows_configs_pointer_affordance():
+    """Phase 4: an empty project list points the user at the SHARED PROJECT
+    CONFIGS pointer already at the top of this same window (Phase 1b moved
+    it here - no 'Change in Settings...' hop)."""
+    qt_app()
+    with tempfile.TemporaryDirectory() as td:
+        with maya_app_dir(td):
+            import maya_tools.framework.project_setup_ui as ui
+            importlib.reload(ui)
+            ui.project_setup_app.list_projects = lambda: []
+            dlg = ui.ProjectSetupUI()
+            assert dlg.empty_list_label.isVisibleTo(dlg)
+            assert "Shared Project Configs" in dlg.empty_list_label.text()
+            dlg.close()
+
+
+def test_nonempty_project_list_hides_the_empty_list_affordance():
+    qt_app()
+    with tempfile.TemporaryDirectory() as td:
+        with maya_app_dir(td):
+            import maya_tools.framework.project_setup_ui as ui
+            importlib.reload(ui)
+            ui.project_setup_app.list_projects = lambda: [_fake_project("hero", "Hero")]
+            dlg = ui.ProjectSetupUI()
+            assert not dlg.empty_list_label.isVisibleTo(dlg)
+            dlg.close()
+
+
 def run():
     check("project_setup_app_imports_alone_offscreen", test_project_setup_app_imports_alone_offscreen)
     check("logger_widget_display_calls_are_offscreen_safe", test_logger_widget_display_calls_are_offscreen_safe)
@@ -1013,12 +1454,46 @@ def run():
     check("revalidate_disables_save_on_error_issue", test_revalidate_disables_save_on_error_issue)
     check("revalidate_enables_save_when_only_warnings", test_revalidate_enables_save_when_only_warnings)
     check("existing_projects_excludes_the_slug_being_edited", test_existing_projects_excludes_the_slug_being_edited)
-    check("configs_root_readout_reflects_env_override", test_configs_root_readout_reflects_env_override)
+    check("configs_panel_present", test_configs_panel_present)
+    check("configs_browse_sets_pointer_and_repopulates_project_list",
+          test_configs_browse_sets_pointer_and_repopulates_project_list)
+    check("configs_use_local_default_clears_pointer", test_configs_use_local_default_clears_pointer)
+    check("configs_env_override_disables_browse", test_configs_env_override_disables_browse)
     check("new_leaves_save_disabled_until_fields_are_filled", test_new_leaves_save_disabled_until_fields_are_filled)
     check("save_new_calls_create_project_and_returns_to_list", test_save_new_calls_create_project_and_returns_to_list)
     check("save_edit_calls_edit_project_with_slug", test_save_edit_calls_edit_project_with_slug)
     check("save_blocked_and_issues_shown_on_error", test_save_blocked_and_issues_shown_on_error)
     check("save_offers_scaffold_checklist_and_creates_checked_dirs", test_save_offers_scaffold_checklist_and_creates_checked_dirs)
+    check("selecting_project_populates_editable_bindings_view",
+          test_selecting_project_populates_editable_bindings_view)
+    check("row_status_colors_green_for_resolving_roots_orange_otherwise",
+          test_row_status_colors_green_for_resolving_roots_orange_otherwise)
+    check("empty_selection_shows_placeholder_right_pane",
+          test_empty_selection_shows_placeholder_right_pane)
+    # Phase 3: editable right pane, local-only Bind
+    check("bindings_browse_sets_field_and_marks_dirty",
+          test_bindings_browse_sets_field_and_marks_dirty)
+    check("bindings_validation_disables_and_enables_bind",
+          test_bindings_validation_disables_and_enables_bind)
+    check("bindings_revert_reloads_persisted_and_clears_dirty",
+          test_bindings_revert_reloads_persisted_and_clears_dirty)
+    check("switching_selection_with_dirty_edits_logs_discard_note",
+          test_switching_selection_with_dirty_edits_logs_discard_note)
+    check("bind_recomputes_row_and_pill_status_and_keeps_selection",
+          test_bind_recomputes_row_and_pill_status_and_keeps_selection)
+    check("bind_writes_local_bindings_and_leaves_shared_pair_untouched",
+          test_bind_writes_local_bindings_and_leaves_shared_pair_untouched)
+    check("bind_succeeds_when_shared_configs_root_is_read_only",
+          test_bind_succeeds_when_shared_configs_root_is_read_only)
+    # Phase 4: unbound pre-fill, empty-list affordance
+    check("derived_bindings_show_helper_label_and_prefill_without_persisting",
+          test_derived_bindings_show_helper_label_and_prefill_without_persisting)
+    check("persisted_bindings_hide_the_derived_label",
+          test_persisted_bindings_hide_the_derived_label)
+    check("empty_project_list_shows_configs_pointer_affordance",
+          test_empty_project_list_shows_configs_pointer_affordance)
+    check("nonempty_project_list_hides_the_empty_list_affordance",
+          test_nonempty_project_list_hides_the_empty_list_affordance)
     # further checks are appended by each task below
 
 

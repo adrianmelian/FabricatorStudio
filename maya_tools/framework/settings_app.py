@@ -152,6 +152,28 @@ def get_bindings(slug: str) -> dict:
             or project_config_io.derive_v1_bindings(slug) or {})
 
 
+def binding_status(slug: str) -> dict:
+    """Resolve-aware status for one project's EFFECTIVE bindings (persisted
+    bindings, else the v1 derivation - same precedence as get_bindings):
+    {'state': 'green'|'orange', 'reason': str}. 'green' iff both
+    source_art_root and content_root are present AND Path(root).is_dir()
+    on THIS machine. 'orange' otherwise, with 'unbound' when a root string
+    is empty or 'missing:<path>' when a root is set but not a directory
+    (whichever root fails first, source before content). Pure filesystem
+    check, no Qt - feeds Mindmeld's row/right-pane color (spec sec 'Status
+    color'). Today's plain 'bound' truthiness check (list_projects_with_status,
+    above) never touches disk; this does."""
+    bindings = get_bindings(slug)
+    src = bindings.get("source_art_root") or ""
+    dst = bindings.get("content_root") or ""
+    if not src or not dst:
+        return {"state": "orange", "reason": "unbound"}
+    for root in (src, dst):
+        if not Path(root).is_dir():
+            return {"state": "orange", "reason": f"missing:{root}"}
+    return {"state": "green", "reason": ""}
+
+
 def bind_project(slug: str, bindings: dict) -> Path:
     """THE new seam: validate the bindings tier alone (against the other
     bound projects, excluding this slug) and persist ONLY

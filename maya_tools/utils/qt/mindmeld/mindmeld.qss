@@ -252,17 +252,18 @@ QPushButton[mindmeld="primary"]:disabled {
     border-color: #1C2126;
 }
 
-/* danger — ember. Delete, Remove, Reset. */
+/* danger — magma red. Delete, Remove, Reset. Red = destructive/error
+   (Adrian, 2026-07-20: vetoed the DNA's magma code-only reservation). */
 QPushButton[mindmeld="danger"] {
-    color: #FF7A3D;
-    border-color: #B5532A;
+    color: #FF3B3B;
+    border-color: #B52A2A;
 }
 QPushButton[mindmeld="danger"]:hover {
-    background-color: rgba(255, 122, 61, 56);  /* ember-glow (web 2.0: 0.22) */
-    border-color: #FF7A3D;
+    background-color: rgba(255, 59, 59, 56);  /* magma-glow */
+    border-color: #FF3B3B;
 }
 QPushButton[mindmeld="danger"]:pressed {
-    background-color: rgba(255, 122, 61, 80);
+    background-color: rgba(255, 59, 59, 80);
 }
 
 /* ghost — borderless until hover. Cancel, Browse, secondary actions.
