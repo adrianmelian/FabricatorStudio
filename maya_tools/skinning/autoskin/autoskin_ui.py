@@ -6,6 +6,11 @@ select your bind joints and your mesh, press Bind Skin, and the mesh is
 skinned. Everything else on this window exists to tell the truth about
 what is happening.
 
+The window wears the Mindmeld 2.0 popover face: frameless shell, the
+brand row as the drag bar, an ember X close, and a folder File menu
+(Install / Uninstall the backend). The install and uninstall prompts are
+the same frameless popover, never a native Maya dialog.
+
 WHY NO THREAD. The engine takes ~2 minutes, and a frozen Maya for two
 minutes is not acceptable. But the work either side of it is maya.cmds,
 which may only run on the main thread — so this pumps the Qt event loop
@@ -24,7 +29,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from maya_tools.skinning.autoskin import autoskin_app as app
 from maya_tools.skinning.autoskin import backend, installer, runner
 from maya_tools.utils.maya.gui import get_maya_window
-from maya_tools.utils.qt.mindmeld import mindmeld_style
+from maya_tools.utils.qt.mindmeld import frameless, mindmeld_style
 from maya_tools.utils.qt.widgets import CollapsibleSection, LoggerWidget
 
 
@@ -73,13 +78,85 @@ def label_for(stage: str, message: str = '') -> tuple:
     return _STAGES.get(stage, stage.replace('_', ' ').capitalize()), message
 
 
+def _confirm_popover(parent, title: str, subtitle: str, lines: list,
+                     ok_label: str, ok_kind: str = 'primary',
+                     cancel_label: str = 'Not now') -> bool:
+    """A frameless Mindmeld confirm popover — the Fabricator popover face
+    (drag bar + ember X + panel body + mindmeld buttons), used for the
+    install and uninstall prompts instead of a native Maya dialog.
+
+    Returns True on the primary action, False on cancel or the X. The X
+    and drag bar come from the frameless shell, so the popover moves and
+    closes exactly like a full tool window.
+    """
+    dlg = QtWidgets.QDialog(parent)
+    # adopt() before apply(): the mindmeld='frameless' border rides a
+    # dynamic property that must exist when the stylesheet lands.
+    frameless.adopt(dlg)
+    mindmeld_style.apply(dlg)
+    dlg.setModal(True)
+    dlg.setMinimumWidth(440)
+
+    root = QtWidgets.QVBoxLayout(dlg)
+    root.setContentsMargins(14, 14, 14, 12)
+    root.setSpacing(10)
+
+    # Drag bar: title + subtitle + ember X (the popover's grab handle).
+    bar = frameless.DragBar()
+    brand_row = QtWidgets.QHBoxLayout(bar)
+    brand_row.setContentsMargins(0, 0, 0, 0)
+    brand_row.setSpacing(10)
+    brand_row.addWidget(mindmeld_style.display_label(title))
+    if subtitle:
+        brand_row.addWidget(mindmeld_style.caps_label(subtitle), 0,
+                            QtCore.Qt.AlignmentFlag.AlignBottom)
+    brand_row.addStretch()
+    brand_row.addWidget(frameless.close_button(dlg), 0,
+                        QtCore.Qt.AlignmentFlag.AlignTop)
+    root.addWidget(bar)
+    root.addWidget(mindmeld_style.horizontal_rule())
+
+    # Body: the message on an iron panel — the 2.0 two-tone signature.
+    panel = QtWidgets.QFrame()
+    mindmeld_style.tag(panel, 'panel')
+    panel_lay = QtWidgets.QVBoxLayout(panel)
+    panel_lay.setContentsMargins(12, 12, 12, 12)
+    panel_lay.setSpacing(6)
+    for line in lines:
+        lbl = mindmeld_style.helper_label(line)
+        lbl.setWordWrap(True)
+        panel_lay.addWidget(lbl)
+    root.addWidget(panel)
+
+    # Buttons: cancel (ghost) + the primary action.
+    btn_row = QtWidgets.QHBoxLayout()
+    btn_row.addStretch(1)
+    cancel_btn = mindmeld_style.button(cancel_label, kind='ghost')
+    ok_btn = mindmeld_style.button(ok_label, kind=ok_kind)
+    cancel_btn.clicked.connect(dlg.reject)
+    ok_btn.clicked.connect(dlg.accept)
+    btn_row.addWidget(cancel_btn)
+    btn_row.addWidget(ok_btn)
+    root.addLayout(btn_row)
+
+    ok_btn.setFocus()
+    return dlg.exec() == QtWidgets.QDialog.DialogCode.Accepted
+
+
 class AutoSkinWindow(QtWidgets.QDialog):
     WINDOW_NAME = 'AutoSkinTool'
     WINDOW_TITLE = 'AutoSkin'
 
     def __init__(self, parent=None):
         super().__init__(parent or get_maya_window())
+
+        # Frameless popover shell (Adrian, 2026-07-20): no OS title bar —
+        # the brand row is the drag bar and carries the ember X, the same
+        # face as Fabricator. adopt() before apply(), so the
+        # mindmeld='frameless' border is set when the stylesheet lands.
+        frameless.adopt(self)
         mindmeld_style.apply(self)
+
         self.setObjectName(self.WINDOW_NAME)
         self.setWindowTitle(self.WINDOW_TITLE)
         self.setProperty('saveWindowPref', True)
@@ -87,30 +164,72 @@ class AutoSkinWindow(QtWidgets.QDialog):
 
         self._cancelled = False
         self._running = False
+        self._health = None
 
+        self._build_file_menu()
         self.create_layout()
         self.connect_signals()
         self.refresh_state()
+
+    # ─────────────────────────────────────────
+    # File menu (folder button pops it — the Fabricator pattern)
+    # ─────────────────────────────────────────
+
+    def _build_file_menu(self):
+        self._file_menu = QtWidgets.QMenu('File', self)
+        # Install acts as install OR reinstall/repair — always offered on a
+        # capable machine. Uninstall only when there is something to remove.
+        self._install_action = QtGui.QAction('Install Backend...', self)
+        self._install_action.triggered.connect(self._on_install)
+        self._file_menu.addAction(self._install_action)
+        self._file_menu.addSeparator()
+        self._uninstall_action = QtGui.QAction('Uninstall Backend...', self)
+        self._uninstall_action.triggered.connect(self._on_uninstall)
+        self._file_menu.addAction(self._uninstall_action)
 
     # ─────────────────────────────────────────
     # Layout
     # ─────────────────────────────────────────
 
     def create_layout(self):
+        # Lazy import (matches fs_window): keeps icon_button off the module
+        # import path so the offscreen test imports without Maya chrome.
+        from maya_tools.framework.toolbar.widgets import icon_button
+
         main = QtWidgets.QVBoxLayout(self)
         main.setSpacing(10)
         main.setContentsMargins(14, 14, 14, 12)
 
-        brand_row = QtWidgets.QHBoxLayout()
+        # Brand bar — the frameless shell's DragBar: with the OS title bar
+        # gone this row is the window's grab handle, and the ember X at its
+        # right edge is the close (runs the normal close() path).
+        self._brand_bar = frameless.DragBar()
+        brand_row = QtWidgets.QHBoxLayout(self._brand_bar)
+        brand_row.setContentsMargins(0, 0, 0, 0)
         brand_row.setSpacing(10)
-        # AutoSkin banner (Adrian, 2026-07-13), same treatment as the Exporter
-        # and the Libraries: scaled to 40px high. The text brand returns if the
-        # PNG is ever missing, so a lost asset costs a nice header, not a window.
-        from maya_tools.framework.toolbar.widgets import icon_button
+
+        # File button: RigBot's folder icon, InstantPopup on the File menu.
+        # Left end — where a menu belongs. Text fallback keeps it usable if
+        # the icon ever goes missing.
+        self._file_btn = QtWidgets.QToolButton()
+        self._file_btn.setObjectName('fab_file_btn')
+        _folder = icon_button.load_icon('fs_folder.png')
+        if _folder is not None:
+            self._file_btn.setIcon(_folder)
+            self._file_btn.setIconSize(QtCore.QSize(22, 22))
+        else:
+            self._file_btn.setText('FILE')
+        self._file_btn.setToolTip('File — Install / Uninstall the AutoSkin backend')
+        self._file_btn.setPopupMode(
+            QtWidgets.QToolButton.ToolButtonPopupMode.InstantPopup)
+        self._file_btn.setMenu(self._file_menu)
+        brand_row.addWidget(self._file_btn)
+
+        # AutoSkin banner (Adrian, 2026-07-13), scaled to 40px high. The
+        # text brand returns if the PNG is ever missing, so a lost asset
+        # costs a nice header, not a window. The test asserts on this
+        # branch, not on Qt internals.
         _banner = QtGui.QPixmap(str(icon_button._ICON_DIR / 'fs_autoskin.png'))
-        # Record which branch we took. A silent fallback to the text brand looks
-        # fine from the outside — which is exactly why a lost or misnamed asset
-        # could ship unnoticed. The test asserts on this, not on Qt internals.
         self.banner_shown = not _banner.isNull()
         if self.banner_shown:
             title = QtWidgets.QLabel()
@@ -119,20 +238,19 @@ class AutoSkinWindow(QtWidgets.QDialog):
         else:
             title = mindmeld_style.brand_label('AutoSkin')
         brand_row.addWidget(title)
-        brand_row.addWidget(mindmeld_style.caps_label('// skin · generate + bind'),
+        brand_row.addWidget(mindmeld_style.caps_label('powered by SkinTokens'),
                             0, QtCore.Qt.AlignmentFlag.AlignBottom)
         brand_row.addStretch()
-        self.status_pill = mindmeld_style.pill('CHECKING', 'idle')
-        brand_row.addWidget(self.status_pill, 0,
-                            QtCore.Qt.AlignmentFlag.AlignBottom)
-        main.addLayout(brand_row)
+        brand_row.addWidget(frameless.close_button(self), 0,
+                            QtCore.Qt.AlignmentFlag.AlignTop)
+        main.addWidget(self._brand_bar)
         main.addWidget(mindmeld_style.horizontal_rule())
 
         # What it is, and whose engine it runs on. The credit line is where the
         # technical provenance belongs — the tool's NAME says what it does, and
         # SkinTokens is not ours to wear (Adrian, 2026-07-13).
         main.addWidget(mindmeld_style.helper_label(
-            'Autoregressive Skeleton & Skin weights - powered by SkinTokens '
+            'Autoregressive Skeleton & Skin weights '
             '(the successor of UniRig)'))
 
         # ── The gesture ──────────────────────────────────────────────
@@ -159,6 +277,10 @@ class AutoSkinWindow(QtWidgets.QDialog):
         main.addWidget(self.bind_btn)
 
         # ── Backend install (only when it is missing) ────────────────
+        # Kept as an in-window fix for the SETUP state: the auto-prompt on
+        # open is the primary path, but a window that reached this state
+        # (e.g. an install declined earlier in the session) still offers the
+        # fix inline rather than only through the File menu.
         self.install_btn = mindmeld_style.button('Install AutoSkin Backend',
                                                  kind='default')
         self.install_btn.setVisible(False)
@@ -170,7 +292,7 @@ class AutoSkinWindow(QtWidgets.QDialog):
         pbox.setContentsMargins(0, 0, 0, 0)
         pbox.setSpacing(6)
 
-        self.stage_label = mindmeld_style.caps_label('// idle')
+        self.stage_label = mindmeld_style.caps_label('idle')
         pbox.addWidget(self.stage_label)
 
         bar_row = QtWidgets.QHBoxLayout()
@@ -188,7 +310,7 @@ class AutoSkinWindow(QtWidgets.QDialog):
         main.addWidget(self.progress_box)
 
         # ── Log ──────────────────────────────────────────────────────
-        self.log_section = CollapsibleSection('// LOG')
+        self.log_section = CollapsibleSection('LOG')
         self.logger = LoggerWidget()
         log_body = QtWidgets.QVBoxLayout()
         log_body.setContentsMargins(0, 0, 0, 0)
@@ -225,6 +347,10 @@ class AutoSkinWindow(QtWidgets.QDialog):
             self._handle_error(exc, brief='Could not check the AutoSkin backend')
             return
 
+        # Stashed for show_window's open check, so opening the tool never
+        # probes the GPU twice.
+        self._health = health
+
         ready = health['ready']
         gpu_ok = health['gpu']['ok']
         installed = health['install']['installed']
@@ -232,19 +358,18 @@ class AutoSkinWindow(QtWidgets.QDialog):
         self.bind_btn.setEnabled(ready and not self._running)
         self.install_btn.setVisible(gpu_ok and not installed and not self._running)
         self.install_btn.setEnabled(not self._running)
+        # File menu: install/repair offered on any capable machine, uninstall
+        # only when there is a backend to remove. Both idle while a job runs.
+        self._install_action.setEnabled(gpu_ok and not self._running)
+        self._uninstall_action.setEnabled(installed and not self._running)
 
         if ready:
-            mindmeld_style.tag(self.status_pill, 'ok')
-            self.status_pill.setText('READY')
             self.hint.setText(
                 'Select your bind joints and your mesh, then press Bind Skin.')
-        elif not gpu_ok:
-            mindmeld_style.tag(self.status_pill, 'warn')
-            self.status_pill.setText('NO GPU')
-            self.hint.setText(health['reason'])
         else:
-            mindmeld_style.tag(self.status_pill, 'warn')
-            self.status_pill.setText('SETUP')
+            # No GPU or not set up: the hint carries the reason in words.
+            # When the backend is merely missing, show_window's open prompt
+            # drives the fix, so no passive status indicator is needed.
             self.hint.setText(health['reason'])
 
     def _on_generate_toggled(self, on: bool):
@@ -262,9 +387,11 @@ class AutoSkinWindow(QtWidgets.QDialog):
         self._running = True
         self.progress_box.setVisible(True)
         self.bar.setValue(0)
-        self.stage_label.setText(f'// {what}')
+        self.stage_label.setText(what)
         self.bind_btn.setEnabled(False)
         self.install_btn.setEnabled(False)
+        self._install_action.setEnabled(False)
+        self._uninstall_action.setEnabled(False)
         self.cancel_btn.setEnabled(True)
         QtWidgets.QApplication.processEvents()
 
@@ -283,7 +410,7 @@ class AutoSkinWindow(QtWidgets.QDialog):
         contract in the test suite).
         """
         label, message = label_for(stage, message)
-        self.stage_label.setText(f'// {label.lower()}'
+        self.stage_label.setText(label.lower()
                                  + (f' — {message}' if message else ''))
         if label in _ORDER:
             # NEVER let the bar run backwards. The stages are not a straight
@@ -297,7 +424,7 @@ class AutoSkinWindow(QtWidgets.QDialog):
     def _on_cancel(self):
         self._cancelled = True
         self.cancel_btn.setEnabled(False)
-        self.stage_label.setText('// cancelling…')
+        self.stage_label.setText('cancelling…')
         self.logger.warning('Cancelling…')
         QtWidgets.QApplication.processEvents()
 
@@ -339,21 +466,31 @@ class AutoSkinWindow(QtWidgets.QDialog):
         finally:
             self._end()
 
-    def _on_install(self):
+    def _prompt_install_or_close(self):
+        """The open-time path: the backend is missing, so lead with the
+        install offer. Declining closes the window — everything in it is
+        dead without the backend, and a window of disabled affordances
+        teaches that the tool is broken (Adrian, 2026-07-20)."""
+        if not self._on_install():
+            self.close()
+
+    def _on_install(self) -> bool:
         """~8.8 GB and about ten minutes. Say so before starting, not
         after — an artist who did not know that has every right to be
-        annoyed."""
-        answer = cmds.confirmDialog(
-            title='Install AutoSkin Backend',
-            message=('AutoSkin needs a one-time backend: a Python '
-                     'environment and its models, about 8.8 GB.\n\n'
-                     'It downloads once and takes roughly ten minutes. '
-                     'Maya stays usable, but AutoSkin will be busy.'),
-            button=['Install', 'Not now'],
-            defaultButton='Install', cancelButton='Not now',
-            dismissString='Not now')
-        if answer != 'Install':
-            return
+        annoyed.
+
+        Returns False when the artist declines the download, True once
+        the offer is accepted (whether or not the install then succeeds:
+        a failure is reported in the log, and the window stays up so the
+        reason can be read and the install retried)."""
+        if not _confirm_popover(
+                self, 'Install Backend', 'one-time setup · ~8.8 GB',
+                ['AutoSkin needs a one-time backend: a Python environment '
+                 'and its models, about 8.8 GB.',
+                 'It downloads once and takes roughly ten minutes. Maya '
+                 'stays usable, but AutoSkin will be busy.'],
+                ok_label='Install', ok_kind='primary'):
+            return False
 
         self.logger.clear()
         self._begin('installing backend')
@@ -376,6 +513,34 @@ class AutoSkinWindow(QtWidgets.QDialog):
                 self.logger.error(
                     'The backend installed, but its smoke test failed: '
                     + smoke.get('detail', 'unknown'))
+        finally:
+            self.bar.setRange(0, len(_ORDER))
+            self._end()
+        return True
+
+    def _on_uninstall(self):
+        """Remove the backend (~8.8 GB) from disk. Confirmed first — it is
+        a big, slow redownload to undo. Only ever offered when a backend is
+        actually installed (refresh_state gates the action)."""
+        if not _confirm_popover(
+                self, 'Uninstall Backend', 'removes ~8.8 GB',
+                ['This deletes the AutoSkin backend — the Python '
+                 'environment, engine and models — from disk.',
+                 'Reinstalling it later is the same ~8.8 GB download. '
+                 'Your scenes and skins are untouched.'],
+                ok_label='Uninstall', ok_kind='danger'):
+            return
+
+        self.logger.clear()
+        self._begin('uninstalling backend')
+        self.bar.setRange(0, 0)      # indeterminate: a bulk delete
+        try:
+            result = installer.uninstall()
+        except Exception as exc:
+            self._handle_error(exc, brief='Uninstall failed')
+        else:
+            removed = ', '.join(result['removed']) if result['removed'] else 'nothing'
+            self.logger.success(f'AutoSkin backend removed ({removed}).')
         finally:
             self.bar.setRange(0, len(_ORDER))
             self._end()
@@ -404,9 +569,7 @@ class AutoSkinWindow(QtWidgets.QDialog):
         # never get. Only the fast git checkout runs unattended; a bump that
         # needs the venv or new models still routes to the gated installer in
         # the window. Best-effort — an offline or stalled update just opens the
-        # normal out-of-date view, never blocks the tool. Lives here, not in
-        # refresh_state, so it fires once on open and never as a side effect of
-        # a state read (and never during the test suite's window construction).
+        # normal out-of-date view, never blocks the tool.
         update_note = ''
         try:
             if installer.repo_update_available():
@@ -421,6 +584,21 @@ class AutoSkinWindow(QtWidgets.QDialog):
                 _win.logger.info(update_note)
             except Exception:
                 pass
-        _win.setWindowFlags(QtCore.Qt.WindowType.Window)
+        # setWindowFlags REPLACES flags — OR FramelessWindowHint back in or
+        # adopt()'s frameless shell loses its title-bar removal.
+        _win.setWindowFlags(QtCore.Qt.WindowType.Window
+                            | QtCore.Qt.WindowType.FramelessWindowHint)
         _win.show()
+
+        # Every open, check the backend: GPU present but backend/models
+        # missing → offer the download immediately, and close the window if
+        # the artist declines (see _prompt_install_or_close). Reads the health
+        # refresh_state already stashed, so the GPU is not probed twice. Via
+        # QTimer so the window paints before the modal appears — a dialog over
+        # an unpainted window reads as a hang. Lives here, not in
+        # refresh_state, so it fires once on open and never during the test
+        # suite's window construction.
+        health = _win._health
+        if health and health['gpu']['ok'] and not health['install']['installed']:
+            QtCore.QTimer.singleShot(0, _win._prompt_install_or_close)
         return _win

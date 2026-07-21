@@ -26,8 +26,14 @@ from __future__ import annotations
 
 __author__ = "Adrian Melian"
 
+import hashlib
+import os
 import shutil
+import stat
 import subprocess
+import tempfile
+import urllib.request
+import zipfile
 from pathlib import Path
 
 from maya_tools.skinning.autoskin import backend
@@ -41,6 +47,18 @@ PYTHON_VERSION = '3.11'
 
 # The bundled mesh the smoke test rigs. Ships with the fork.
 SMOKE_MESH = 'examples/giraffe.glb'
+
+# Bootstrapped tooling — pinned exact versions + hashes, downloaded only
+# when the tool is not already on the machine. Artist boxes have neither
+# uv nor git; demanding them cost the first outside install (issue #22).
+UV_VERSION = '0.11.30'
+UV_URL = ('https://github.com/astral-sh/uv/releases/download/'
+          f'{UV_VERSION}/uv-x86_64-pc-windows-msvc.zip')
+UV_SHA256 = 'be8d78c992312212e5cc05e9f9de3fa996db73b7c86a186dfb9231eb9f91d33e'
+
+MINGIT_URL = ('https://github.com/git-for-windows/git/releases/download/'
+              'v2.55.0.windows.3/MinGit-2.55.0.3-busybox-64-bit.zip')
+MINGIT_SHA256 = 'cbb2ade2bf690b62f0d692ec64733cb26c6b4ea294b0b9752a705446f011b41f'
 
 _NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
@@ -74,24 +92,84 @@ def _run(cmd: list, cwd: Path | None = None, timeout: int = 3600) -> str:
 # Steps — each one is (label, is_done, do)
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _bin_dir() -> Path:
+    return backend.backend_root() / 'bin'
+
+
+def _bootstrap(url: str, sha256: str, dest: Path) -> Path:
+    """Download a pinned zip and unpack it into `dest`. The hash is
+    verified before unpacking, and the unpack lands in a temp sibling
+    renamed into place — an interrupted download must never leave a
+    half-populated dest that later resolves as installed."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=str(dest.parent)) as td:
+        zip_path = Path(td) / 'pkg.zip'
+        with urllib.request.urlopen(url, timeout=120) as r, \
+                open(zip_path, 'wb') as f:
+            shutil.copyfileobj(r, f)
+        digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+        if digest != sha256:
+            raise InstallError(f'checksum mismatch downloading {url}')
+        stage = Path(td) / 'unpacked'
+        with zipfile.ZipFile(zip_path) as z:
+            z.extractall(stage)
+        if dest.exists():
+            shutil.rmtree(dest, ignore_errors=True)
+        os.replace(stage, dest)
+    return dest
+
+
 def _uv() -> str:
-    """The uv executable. uv builds the venv and resolves deps far faster
-    than pip and is what the proven install used."""
+    """The uv executable. uv builds the venv, resolves deps far faster
+    than pip, and downloads a managed Python 3.11 on machines that have
+    no system Python at all — it cannot be swapped for pip/venv. Private
+    pinned copy first, then PATH, then bootstrap."""
+    private = _bin_dir() / 'uv' / 'uv.exe'
+    if private.is_file():
+        return str(private)
     found = shutil.which('uv')
-    if not found:
+    if found:
+        return found
+    if os.name != 'nt':
         raise InstallError(
-            'uv is not installed (or not on PATH). AutoSkin uses it to '
-            'build its Python environment. Install it with:\n'
-            '    pip install uv')
-    return found
+            'uv is not installed (or not on PATH). Install it from '
+            'https://docs.astral.sh/uv/getting-started/installation/ '
+            'and run the install again.')
+    try:
+        _bootstrap(UV_URL, UV_SHA256, _bin_dir() / 'uv')
+    except InstallError:
+        raise
+    except Exception as exc:
+        raise InstallError(
+            f'Could not download uv ({exc}). Check your network and run '
+            'the install again, or install uv manually from '
+            'https://docs.astral.sh/uv/getting-started/installation/')
+    return str(private)
 
 
 def _git() -> str:
+    """Same resolution as _uv(): private MinGit, then PATH, then
+    bootstrap. Artists do not have git; the engine clone must not
+    require them to become developers first."""
+    private = _bin_dir() / 'mingit' / 'cmd' / 'git.exe'
+    if private.is_file():
+        return str(private)
     found = shutil.which('git')
-    if not found:
+    if found:
+        return found
+    if os.name != 'nt':
         raise InstallError('git is not installed (or not on PATH). '
                            'AutoSkin needs it to fetch its engine.')
-    return found
+    try:
+        _bootstrap(MINGIT_URL, MINGIT_SHA256, _bin_dir() / 'mingit')
+    except InstallError:
+        raise
+    except Exception as exc:
+        raise InstallError(
+            f'Could not download Git ({exc}). Check your network and run '
+            'the install again, or install Git manually from '
+            'https://git-scm.com/download/win')
+    return str(private)
 
 
 def repo_done() -> bool:
@@ -254,9 +332,23 @@ STEPS = (
     ('Downloading models',    models_done, do_models),
 )
 
-# Everything the installer creates, relative to the backend root. Uninstall
+# Everything the backend owns, relative to the backend root: what the
+# installer creates plus the runner's job scratch ('work'). Uninstall
 # removes exactly these and nothing else.
-_OWNED = ('repo', 'venv', 'smoke_out', 'smoke_out.glb', 'state.json')
+_OWNED = ('repo', 'venv', 'bin', 'work', 'smoke_out', 'smoke_out.glb',
+          'state.json')
+
+
+def _rmtree(path: Path) -> None:
+    """rmtree that survives read-only files. git marks its object files
+    read-only on Windows, so a plain rmtree (even ignore_errors=True)
+    silently leaves the entire repo — and the 1.6 GB of checkpoints
+    inside it — behind. Found live on the first real uninstall,
+    2026-07-20."""
+    def _clear_ro(func, p, _exc):
+        os.chmod(p, stat.S_IWRITE)
+        func(p)
+    shutil.rmtree(path, onerror=_clear_ro)
 
 
 def uninstall() -> dict:
@@ -276,7 +368,10 @@ def uninstall() -> dict:
         if not target.exists():
             continue
         if target.is_dir():
-            shutil.rmtree(target, ignore_errors=True)
+            try:
+                _rmtree(target)
+            except OSError:
+                pass    # reported honestly: the name stays out of `removed`
         else:
             target.unlink(missing_ok=True)
         if not target.exists():

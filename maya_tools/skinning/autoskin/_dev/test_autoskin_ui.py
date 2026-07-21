@@ -100,7 +100,6 @@ def test_ready_backend_enables_the_one_button():
     with health(ready=True):
         w = make_window()
     assert w.bind_btn.isEnabled()
-    assert w.status_pill.text() == 'READY'
     assert w.install_btn.isHidden()
     assert w.bind_btn.text().upper() == 'BIND SKIN'
 
@@ -113,7 +112,6 @@ def test_no_gpu_says_so_in_words_and_offers_no_install():
                        'with at least 6 GB of VRAM.'):
         w = make_window()
     assert not w.bind_btn.isEnabled()
-    assert w.status_pill.text() == 'NO GPU'
     assert 'NVIDIA' in w.hint.text()
     assert w.install_btn.isHidden(), 'offered an install that cannot help'
 
@@ -123,7 +121,6 @@ def test_missing_backend_offers_the_install():
                 reason='AutoSkin backend is not installed. Run Install Backend.'):
         w = make_window()
     assert not w.bind_btn.isEnabled()
-    assert w.status_pill.text() == 'SETUP'
     assert not w.install_btn.isHidden(), 'a fixable setup offered no fix'
 
 
