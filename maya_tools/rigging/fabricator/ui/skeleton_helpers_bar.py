@@ -2,10 +2,12 @@
 """SkeletonHelpersBar — the Armature toolbar (right-click-menu era,
 2026-07-19).
 
-Presented as an ember-outlined group box titled "Armature Tools"
-(Adrian, 2026-07-21): the four menus and the Symmetry toggle are one
-instrument, and the frame is what says so. Ember is the label accent,
-so naming a region is its job.
+Presented as a quiet panel-toned group box titled "Armature Tools":
+the four menus and the Symmetry toggle are one instrument, and the frame
+is what says so. It started ember-outlined (2026-07-21) and was toned
+down the next day against Adrian's mockup - the ember in this region
+belongs to the panel headers beside it, and spending it on a container
+frame too was what made the whole area shout.
 
 Four MenuButtons — SKELETON / AIMERS / MIRROR / DUPLICATE — plus the
 checkable Symmetry toggle (plasma green; ember orange while active).
@@ -123,16 +125,15 @@ class SkeletonHelpersBar(QtWidgets.QWidget):
             traceback.print_exc()
 
     def create_layout(self):
-        # Ember-outlined group box titled "Armature Tools" (Adrian,
-        # 2026-07-21). These four menus plus Symmetry are one
-        # instrument, and unframed they read as loose chrome sitting
-        # under the banner. The frame wraps the bar's own contents
+        # Panel-toned group box titled "Armature Tools". These four
+        # menus plus Symmetry are one instrument, and unframed they read
+        # as loose chrome sitting under the banner. The frame wraps the bar's own contents
         # rather than the bar being wrapped by FSWindow, so
         # refresh_state's setVisible still hides the whole thing and
         # the host needs no change.
         outer = QtWidgets.QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        self.group = mindmeld_style.group_box('Armature Tools', accent=True)
+        self.group = mindmeld_style.group_box('Armature Tools', panel=True)
         outer.addWidget(self.group)
 
         root = QtWidgets.QHBoxLayout(self.group)

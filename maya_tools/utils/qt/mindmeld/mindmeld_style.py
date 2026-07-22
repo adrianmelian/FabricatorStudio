@@ -303,21 +303,22 @@ def pill(text: str, kind: str = "idle", *, parent: Optional[QWidget] = None) -> 
     return lbl
 
 
-def group_box(title: str, *, accent: bool = False,
+def group_box(title: str, *, panel: bool = False,
               parent: Optional[QWidget] = None) -> QGroupBox:
     """Titled group frame around a set of related controls.
 
-    Default is the quiet form: iron_3 outline, ember title. `accent=True`
-    takes the ember outline too, for a group that should read as one
-    named instrument rather than background chrome.
+    Default is the shared look: transparent ground, iron_3 outline,
+    ember title. `panel=True` is the quiet container instead: iron fill,
+    a barely-there border, dim title.
 
-    Ember is the label accent, so naming a region is exactly its job.
-    It never becomes a CTA or a state colour, and one accented group per
-    region is the limit before the emphasis stops meaning anything.
+    Reach for `panel=True` when the group sits next to other ember
+    labels. Ember is the label accent, but spending it on a container
+    frame AND on the headers beside it is what makes a region shout
+    (Adrian, 2026-07-22).
     """
     box = QGroupBox(title, parent)
-    if accent:
-        box.setProperty("mindmeld", "accent")
+    if panel:
+        box.setProperty("mindmeld", "panel")
     return box
 
 
