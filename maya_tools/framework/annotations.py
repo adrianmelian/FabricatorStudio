@@ -77,9 +77,34 @@ def _front_matter(path: Path) -> dict:
     return out
 
 
+# Card media, in preference order. A moving demo beats a still, and a
+# still beats nothing — but plenty of things are better shown static (a
+# panel's contents, a button's two states), so a PNG is a first-class
+# answer rather than a fallback. `.gif` stays first only because it is
+# what the docs front-matter has always named.
+_MEDIA_EXTS = (".gif", ".webp", ".png")
+
+
+def _media_in(subdir: str, stem: str) -> str:
+    """Absolute path to <subdir>/<stem> with any supported extension."""
+    for ext in _MEDIA_EXTS:
+        p = _MEDIA / subdir / f"{stem}{ext}"
+        if p.exists():
+            return str(p)
+    return ""
+
+
 def _gif_for(slug: str) -> str:
-    p = _MEDIA / f"{slug}.gif"
-    return str(p) if p.exists() else ""
+    """Absolute path to <slug>'s card media, or "" when it has none.
+
+    Named for the front-matter key, not the format: it resolves any of
+    _MEDIA_EXTS and the card renders whichever it gets.
+    """
+    for ext in _MEDIA_EXTS:
+        p = _MEDIA / f"{slug}{ext}"
+        if p.exists():
+            return str(p)
+    return ""
 
 
 @lru_cache(maxsize=256)
@@ -102,21 +127,20 @@ def for_component(comp_type: str) -> Annotation:
 def for_option(comp_type: str, option_name: str, description: str) -> Annotation:
     """Option title is the option name, text is the contract's
     OptionField.description (passed in by the caller so this stays decoupled
-    from the contract import). Gif is optional."""
-    gif = _MEDIA / "options" / f"{_slug(comp_type)}__{option_name}.gif"
+    from the contract import). Media is optional."""
     return Annotation(title=option_name,
                       text=description or "",
-                      gif=str(gif) if gif.exists() else "")
+                      gif=_media_in("options", f"{_slug(comp_type)}__{option_name}"))
 
 
 def for_toolbar(button_id: str, title: str = "", tooltip: str = "") -> Annotation:
     """A toolbar button with no dedicated tool doc: annotate from its own
-    tooltip text (and title, if any), with an optional gif at
-    docs/media/toolbar/<button_id>.gif. Drop a gif in and it shows on hover."""
-    gif = _MEDIA / "toolbar" / f"{button_id}.gif"
+    tooltip text (and title, if any), with optional media at
+    docs/media/toolbar/<button_id>.{gif,webp,png}. Drop a file in and it
+    shows on hover."""
     return Annotation(title=title or "",
                       text=tooltip or "",
-                      gif=str(gif) if gif.exists() else "")
+                      gif=_media_in("toolbar", button_id))
 
 
 def clear_cache() -> None:

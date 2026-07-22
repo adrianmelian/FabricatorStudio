@@ -21,8 +21,10 @@ Every card carries a quiet Skip. `act` turns the eyebrow from
 'STEP 1 OF 4' into 'THE LAYOUT / 1 OF 4' for multi-act tours; step and
 total are per-act, so the dot row scopes to the act too.
 
-`gif` renders a looping clip under the body text through fit_movie, the
-same scale-to-fit-never-upscale path hover_annotation uses.
+`media` renders a clip OR a still under the body text through
+load_media, the same scale-to-fit-never-upscale path hover_annotation
+uses. Not everything worth showing moves: a still of a panel beats a
+clip of a cursor wandering across it.
 """
 from __future__ import annotations
 
@@ -65,28 +67,55 @@ def fit_size(w: int, h: int, max_w: int, max_h: int):
     return int(w * scale), int(h * scale)
 
 
-def fit_movie(path: str, max_w: int, max_h: int):
-    """(QMovie, w, h) fitted per fit_size, or None when the path is empty
-    / unreadable / zero-sized.
+# Above this frame count a clip is decoded on the fly instead of held in
+# memory. CacheAll on a 420x378 clip costs ~635 KB per frame decoded, so a
+# long one runs into tens of MB sitting behind a tooltip. Short clips keep
+# the cache, since that is the smoother playback.
+_CACHE_FRAME_LIMIT = 80
 
-    Single gif renderer for the whole Qt layer: HoverAnnotation and
+
+def load_media(path: str, max_w: int, max_h: int):
+    """(kind, obj, w, h) fitted per fit_size, or None when the path is
+    empty / unreadable / zero-sized.
+
+    kind is 'movie' (QMovie, animated) or 'pixmap' (QPixmap, static).
+    Not everything worth putting on a card moves: a still of a panel
+    says what the panel holds better than a clip of a cursor wandering
+    over it (Adrian shipped PNGs for exactly that, 2026-07-21). Format
+    follows the file, so .gif / .webp / .png all just work.
+
+    Single media loader for the whole Qt layer: HoverAnnotation and
     CoachCard both come through here, so the two cards can never drift
-    on scaling or cache policy.
+    on scaling, animation detection, or cache policy.
     """
     if not path:
         return None
-    probe = QtGui.QMovie(path)
-    probe.jumpToFrame(0)
-    size = probe.currentImage().size()
-    probe.deleteLater()
+    reader = QtGui.QImageReader(path)
+    if not reader.canRead():
+        return None
+    size = reader.size()
     fitted = fit_size(size.width(), size.height(), max_w, max_h)
     if fitted is None:
         return None
     dw, dh = fitted
-    movie = QtGui.QMovie(path)
-    movie.setCacheMode(QtGui.QMovie.CacheAll)
-    movie.setScaledSize(QtCore.QSize(dw, dh))
-    return movie, dw, dh
+
+    # A static PNG through QMovie reports frameCount() == 0 and renders
+    # nothing, so animation support is checked rather than assumed.
+    frames = reader.imageCount()
+    if reader.supportsAnimation() and frames > 1:
+        movie = QtGui.QMovie(path)
+        movie.setCacheMode(QtGui.QMovie.CacheAll if frames <= _CACHE_FRAME_LIMIT
+                           else QtGui.QMovie.CacheNone)
+        movie.setScaledSize(QtCore.QSize(dw, dh))
+        return 'movie', movie, dw, dh
+
+    pix = QtGui.QPixmap(path)
+    if pix.isNull():
+        return None
+    return ('pixmap',
+            pix.scaled(dw, dh, QtCore.Qt.AspectRatioMode.KeepAspectRatio,
+                       QtCore.Qt.TransformationMode.SmoothTransformation),
+            dw, dh)
 
 
 class _NotchFrame(QtWidgets.QWidget):
@@ -135,7 +164,7 @@ class CoachCard:
     def __init__(self, anchor_widget, title, body_text,
                  on_next=None, on_skip=None, advance_probe=None,
                  advance_on_anchor_press=False, next_label='Next',
-                 step=None, total=None, act=None, gif='',
+                 step=None, total=None, act=None, media='',
                  parent=None):
         self._on_next = on_next
         self._on_skip = on_skip
@@ -180,25 +209,30 @@ class CoachCard:
         body.setStyleSheet(_mm.COACH_BODY_QSS)
         lay.addWidget(body)
 
-        # Gif well. A missing or broken file degrades to a text-only
-        # card, never a gap and never a raise: the clips ship as content
-        # and content can be absent.
-        has_gif = False
-        if gif:
+        # Media well — an animated clip or a still, whichever the file is.
+        # A missing or broken file degrades to a text-only card, never a
+        # gap and never a raise: these ship as content, and content can
+        # be absent.
+        has_media = False
+        if media:
             try:
-                fitted = fit_movie(gif, GIF_MAX_W, GIF_MAX_H)
+                loaded = load_media(media, GIF_MAX_W, GIF_MAX_H)
             except Exception:
-                fitted = None
-            if fitted is not None:
-                self._movie, gw, gh = fitted
+                loaded = None
+            if loaded is not None:
+                kind, obj, gw, gh = loaded
                 well = QtWidgets.QLabel()
                 well.setStyleSheet('background: transparent;')
                 well.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
                 well.setFixedSize(gw, gh)
-                well.setMovie(self._movie)
-                self._movie.start()
+                if kind == 'movie':
+                    self._movie = obj
+                    well.setMovie(obj)
+                    obj.start()
+                else:
+                    well.setPixmap(obj)
                 lay.addWidget(well, 0, QtCore.Qt.AlignmentFlag.AlignHCenter)
-                has_gif = True
+                has_media = True
 
         lay.addSpacing(4)
         row = QtWidgets.QHBoxLayout()
@@ -222,7 +256,7 @@ class CoachCard:
             row.addWidget(nxt)
         lay.addLayout(row)
 
-        c.setFixedWidth(CARD_W_GIF if has_gif else CARD_W)
+        c.setFixedWidth(CARD_W_GIF if has_media else CARD_W)
 
         self._poll = None
         if self._probe is not None:

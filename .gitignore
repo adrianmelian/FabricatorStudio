@@ -28,6 +28,14 @@ Branding/
 # to keep _concepts/*.png ignored; verified with `git check-ignore`.
 !icons/*.png
 
+# Card media for hover annotations and the guided tours (stills + clips).
+# Same trap the shelf icons hit above: the blanket *.png rule silently
+# swallows every still, the cards then render text-only, and nothing
+# anywhere reports an error — the media just is not there. Clips were
+# never affected (*.gif is not ignored), so a half-set would have shipped
+# looking deliberate. Verified with `git check-ignore -v`.
+!maya_tools/docs/media/**/*.png
+
 # Private Fabricator templates — stay on disk, generic copies are tracked instead
 maya_tools/rigging/fabricator/templates/Michael.blueprint.yaml
 maya_tools/rigging/fabricator/templates/Dybbuk.blueprint.yaml

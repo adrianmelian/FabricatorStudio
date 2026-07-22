@@ -8,8 +8,9 @@ system python, so run it under mayapy, offscreen platform plugin:
 
 Covers the parts that are cheap to get wrong in a promotion: the eyebrow
 wording (act vs plain STEP), Next present only when there is no probe,
-the fire-once close guard, probe-driven advance, and fit_movie's
-never-upscale contract.
+the fire-once close guard, probe-driven advance, load_media's
+never-upscale contract, and animated-vs-static detection against the
+real shipped tour media.
 """
 from __future__ import annotations
 
@@ -116,10 +117,52 @@ def test_probe_exception_is_swallowed():
     check('a raising probe never escapes the timer', ok)
 
 
-def test_fit_movie_contract():
-    check('fit_movie(empty) is None', coach_card.fit_movie('', 100, 100) is None)
-    check('fit_movie(missing file) is None',
-          coach_card.fit_movie('nope_does_not_exist.gif', 100, 100) is None)
+def test_load_media_contract():
+    check('load_media(empty) is None', coach_card.load_media('', 100, 100) is None)
+    check('load_media(missing file) is None',
+          coach_card.load_media('nope_does_not_exist.gif', 100, 100) is None)
+
+
+def test_load_media_against_the_real_shipped_files():
+    """The delivered tour media, through the real loader. A static PNG
+    must come back as a pixmap: routed through QMovie it reports
+    frameCount() == 0 and renders an empty well."""
+    media = (Path(__file__).resolve().parents[4]
+             / 'maya_tools' / 'docs' / 'media' / 'tour')
+    if not media.is_dir():
+        check('tour media folder present (skipped, not installed)', True)
+        return
+    W, H = coach_card.GIF_MAX_W, coach_card.GIF_MAX_H
+
+    for png in sorted(media.glob('*.png')):
+        got = coach_card.load_media(str(png), W, H)
+        check(f'{png.name} loads as a pixmap',
+              got is not None and got[0] == 'pixmap')
+
+    for gif in sorted(media.glob('*.gif')):
+        got = coach_card.load_media(str(gif), W, H)
+        check(f'{gif.name} loads as a movie',
+              got is not None and got[0] == 'movie')
+        if got:
+            _, _, w, h = got
+            check(f'{gif.name} renders 1:1 at {w}x{h}', (w, h) == (420, 378))
+
+
+def test_missing_media_degrades():
+    c = coach_card.CoachCard(None, 'T', 'B', media='nope_does_not_exist.gif')
+    check('missing media leaves a text-only card at the narrow width',
+          c.card.width() == coach_card.CARD_W)
+
+
+def test_static_png_widens_the_card():
+    media = (Path(__file__).resolve().parents[4]
+             / 'maya_tools' / 'docs' / 'media' / 'tour' / 'components.png')
+    if not media.is_file():
+        check('png card widens (skipped, media not installed)', True)
+        return
+    c = coach_card.CoachCard(None, 'T', 'B', media=str(media))
+    check('a still widens the card exactly like a clip does',
+          c.card.width() == coach_card.CARD_W_GIF)
 
 
 def test_fit_size():
@@ -150,12 +193,6 @@ def test_gif_card_fits_a_full_width_clip():
     usable = coach_card.CARD_W_GIF - 36      # 18px margin either side
     check('a full-width gif fits the widened card with no clipping',
           usable >= coach_card.GIF_MAX_W)
-
-
-def test_missing_gif_degrades():
-    c = coach_card.CoachCard(None, 'T', 'B', gif='nope_does_not_exist.gif')
-    check('a missing gif leaves a text-only card at the narrow width',
-          c.card.width() == coach_card.CARD_W)
 
 
 def test_notch_flip_default():

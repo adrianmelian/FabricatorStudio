@@ -20,7 +20,7 @@ from typing import Callable, Optional
 
 from PySide6 import QtWidgets, QtCore, QtGui
 
-from maya_tools.utils.qt.coach_card import fit_movie
+from maya_tools.utils.qt.coach_card import load_media
 from maya_tools.utils.qt.mindmeld import mindmeld_style as _mm
 
 
@@ -105,17 +105,23 @@ class HoverAnnotation(QtWidgets.QWidget):
 
     # --- content ---------------------------------------------------------
     def _set_gif(self, path: str) -> bool:
-        # Scale-to-fit-never-upscale lives in coach_card.fit_movie so this
-        # card and the tour cards can never drift apart on it.
+        # Scale-to-fit-never-upscale and animated-vs-still detection both
+        # live in coach_card.load_media, so this card and the tour cards
+        # can never drift apart on either. Despite the name, the slot
+        # takes a still as happily as a clip.
         self._stop_movie()
-        fitted = fit_movie(path, GIF_MAX_W, GIF_MAX_H)
-        if fitted is None:
+        loaded = load_media(path, GIF_MAX_W, GIF_MAX_H)
+        if loaded is None:
             self._gif.hide()
             return False
-        self._movie, dw, dh = fitted
+        kind, obj, dw, dh = loaded
         self._gif.setFixedSize(dw, dh)
-        self._gif.setMovie(self._movie)
-        self._movie.start()
+        if kind == 'movie':
+            self._movie = obj
+            self._gif.setMovie(obj)
+            obj.start()
+        else:
+            self._gif.setPixmap(obj)
         self._gif.show()
         return True
 
