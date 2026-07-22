@@ -238,6 +238,7 @@ class AnimExporterWindow(QtWidgets.QDialog):
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
         layout.addWidget(self.table)
 
         # ── Export Options (collapsed; project config autofills, the combo
@@ -320,6 +321,7 @@ class AnimExporterWindow(QtWidgets.QDialog):
         self.export_selected_btn.clicked.connect(self._on_export_selected)
         self.export_all_btn.clicked.connect(self._on_export_all)
         self.maint_cleanup_action.triggered.connect(self._on_cleanup_bindings)
+        self.table.customContextMenuRequested.connect(self._on_table_context_menu)
 
     # ─────────────────────────────────────────
     # Populate
@@ -619,24 +621,27 @@ class AnimExporterWindow(QtWidgets.QDialog):
         """The Export Options pick: '' = follow the project config."""
         return self.engine_axis_combo.currentData() or ''
 
-    def _on_export_checked(self):
-        enabled = [n for n in anim_core.list_clips()
-                   if anim_core.get_clip_data(n)['enabled']]
-        if not enabled:
-            self.logger.warning('No checked clips to export.')
-            return
-        progress = ExportProgressDialog(len(enabled), parent=self)
+    def _run_clip_export(self, nodes: list, summary) -> None:
+        """Shared export body for the four entry points (checked,
+        selected, all, and the single-clip context menu): progress
+        dialog around the blocking export, success log + toast.
+
+        `summary` takes the written list and returns the log line —
+        each entry point words its result differently, and that wording
+        is the only thing that ever differed between these bodies.
+        """
+        progress = ExportProgressDialog(len(nodes), parent=self)
         progress.show()
         try:
             written = anim_app.export_clips(
-                enabled,
+                nodes,
                 save_callback=self._save_callback, log=self.logger,
                 progress_callback=progress.on_clip_started,
                 cancel_check=progress.is_cancelled,
                 dest_override=self.output_dir_edit.text().strip(),
                 engine_up_axis_override=self._engine_up_axis_override(),
             )
-            self.logger.success(f'Exported {len(written)} file(s).')
+            self.logger.success(summary(written))
             self._toast_exported(written)
         except anim_app.ExportCancelled as e:
             self.logger.info(str(e))
@@ -644,6 +649,15 @@ class AnimExporterWindow(QtWidgets.QDialog):
             self._handle_error(e)
         finally:
             progress.close()
+
+    def _on_export_checked(self):
+        enabled = [n for n in anim_core.list_clips()
+                   if anim_core.get_clip_data(n)['enabled']]
+        if not enabled:
+            self.logger.warning('No checked clips to export.')
+            return
+        self._run_clip_export(
+            enabled, lambda w: f'Exported {len(w)} file(s).')
 
     def _on_export_selected(self):
         rows = sorted({i.row() for i in self.table.selectedIndexes()})
@@ -657,50 +671,45 @@ class AnimExporterWindow(QtWidgets.QDialog):
                 nodes.append(rigs_item.data(QtCore.Qt.ItemDataRole.UserRole))
         if not nodes:
             return
-        progress = ExportProgressDialog(len(nodes), parent=self)
-        progress.show()
-        try:
-            written = anim_app.export_clips(
-                nodes,
-                save_callback=self._save_callback, log=self.logger,
-                progress_callback=progress.on_clip_started,
-                cancel_check=progress.is_cancelled,
-                dest_override=self.output_dir_edit.text().strip(),
-                engine_up_axis_override=self._engine_up_axis_override(),
-            )
-            self.logger.success(f'Exported {len(written)} of {len(nodes)} selected.')
-            self._toast_exported(written)
-        except anim_app.ExportCancelled as e:
-            self.logger.info(str(e))
-        except Exception as e:
-            self._handle_error(e)
-        finally:
-            progress.close()
+        self._run_clip_export(
+            nodes,
+            lambda w: f'Exported {len(w)} of {len(nodes)} selected.')
 
     def _on_export_all(self):
         nodes = anim_core.list_clips()
         if not nodes:
             self.logger.warning('No clips to export.')
             return
-        progress = ExportProgressDialog(len(nodes), parent=self)
-        progress.show()
-        try:
-            written = anim_app.export_clips(
-                nodes,
-                save_callback=self._save_callback, log=self.logger,
-                progress_callback=progress.on_clip_started,
-                cancel_check=progress.is_cancelled,
-                dest_override=self.output_dir_edit.text().strip(),
-                engine_up_axis_override=self._engine_up_axis_override(),
-            )
-            self.logger.success(f'Exported {len(written)} file(s) total.')
-            self._toast_exported(written)
-        except anim_app.ExportCancelled as e:
-            self.logger.info(str(e))
-        except Exception as e:
-            self._handle_error(e)
-        finally:
-            progress.close()
+        self._run_clip_export(
+            nodes, lambda w: f'Exported {len(w)} file(s) total.')
+
+    def _on_table_context_menu(self, pos: QtCore.QPoint):
+        """Right-click a single clip row: export just that clip, no
+        checking boxes or multi-select required. Empty space under the
+        rows is a no-op (Adrian, 2026-07-21)."""
+        row = self.table.rowAt(pos.y())
+        if row < 0:
+            return
+        rigs_item = self.table.item(row, self.COL_RIGS)
+        clip_node = rigs_item.data(QtCore.Qt.ItemDataRole.UserRole) if rigs_item else None
+        if not clip_node:
+            return
+
+        name_edit = self.table.cellWidget(row, self.COL_NAME)
+        clip_name = name_edit.text().strip() if name_edit else ''
+        label = f'Export This Clip ({clip_name})' if clip_name else 'Export This Clip'
+
+        menu = QtWidgets.QMenu(self.table)
+        export_act = menu.addAction(label)
+        export_act.triggered.connect(
+            lambda _checked=False, n=clip_node: self._on_export_this_clip(n))
+        menu.exec(self.table.viewport().mapToGlobal(pos))
+
+    def _on_export_this_clip(self, clip_node: str):
+        """Same export pipeline as Export Selected/Export All, scoped to
+        the single clip resolved by the context menu."""
+        self._run_clip_export(
+            [clip_node], lambda w: f'Exported {len(w)} file(s).')
 
     def _on_cleanup_bindings(self):
         try:

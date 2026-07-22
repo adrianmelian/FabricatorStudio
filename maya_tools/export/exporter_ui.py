@@ -365,6 +365,7 @@ class ExporterWindow(QtWidgets.QDialog):
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
         layout.addWidget(self.table)
 
         # ── Export Options (collapsed; project config autofills, the combo
@@ -438,6 +439,7 @@ class ExporterWindow(QtWidgets.QDialog):
         self.export_checked_btn.clicked.connect(self._on_export_checked)
         self.export_selected_btn.clicked.connect(self._on_export_selected)
         self.export_all_btn.clicked.connect(self._on_export_all)
+        self.table.customContextMenuRequested.connect(self._on_table_context_menu)
 
     # ─────────────────────────────────────────
     # Populate
@@ -767,6 +769,27 @@ class ExporterWindow(QtWidgets.QDialog):
 
     def _on_export_all(self):
         self._run_export(export_core.list_entries())
+
+    def _on_table_context_menu(self, pos: QtCore.QPoint):
+        """Right-click a single row: export just that entry, no checking
+        boxes or multi-select required. Empty space under the rows is a
+        no-op (Adrian, 2026-07-21)."""
+        row = self.table.rowAt(pos.y())
+        if row < 0:
+            return
+        widget = self.table.cellWidget(row, self.COL_NAME)
+        entry_node = widget.property('entry_node') if widget else None
+        if not entry_node:
+            return
+
+        name = widget.text().strip() if widget else ''
+        label = f'Export This Entry ({name})' if name else 'Export This Entry'
+
+        menu = QtWidgets.QMenu(self.table)
+        export_act = menu.addAction(label)
+        export_act.triggered.connect(
+            lambda _checked=False, n=entry_node: self._run_export([n], label='entry'))
+        menu.exec(self.table.viewport().mapToGlobal(pos))
 
     def _on_open_detail(self, entry_node: str):
         dlg = EntryDetailDialog(entry_node, parent=self)
