@@ -38,7 +38,8 @@ __author__ = "Adrian Melian"
 
 WELCOME_TOUR = 'welcome_tour'
 
-_ONBOARDING_KEY = 'onboarding'          # dict inside toolbar prefs
+# Flag storage lives in tour_engine now, shared with the Fabricator
+# tour so both spend flags out of the same 'onboarding' dict.
 _SETTLE_MS = 1800                       # let Maya's UI finish standing up
 
 
@@ -49,37 +50,26 @@ _SETTLE_MS = 1800                       # let Maya's UI finish standing up
 def pending_moments(prefs: dict) -> list:
     """The tour pends while its flag is unseen. Seen-flags live in
     prefs['onboarding'][<moment>] (missing = unseen)."""
-    seen = (prefs.get(_ONBOARDING_KEY) or {}) if isinstance(prefs, dict) else {}
-    if isinstance(seen, dict) and seen.get(WELCOME_TOUR):
-        return []
-    return [WELCOME_TOUR]
+    from maya_tools.framework import tour_engine
+    return [] if tour_engine.has_seen(WELCOME_TOUR, prefs) else [WELCOME_TOUR]
 
 
 def mark_seen(moment: str) -> None:
     """Persist a moment's seen-flag (atomic prefs write)."""
-    from maya_tools.framework.toolbar import toolbar_prefs
-    prefs = toolbar_prefs.load_prefs()
-    onboarding = dict(prefs.get(_ONBOARDING_KEY) or {})
-    onboarding[moment] = True
-    prefs[_ONBOARDING_KEY] = onboarding
-    toolbar_prefs.save_prefs(prefs)
+    from maya_tools.framework import tour_engine
+    tour_engine.mark_seen(moment)
 
 
 def reset_tour(moment: str = WELCOME_TOUR) -> None:
     """Un-spend a tour's seen-flag so it fires again next startup.
 
     Dev and QA seam: a one-time moment is otherwise unverifiable after
-    its first run without hand-editing prefs. Also the seam a future
-    'Take the Tour' re-entry calls.
+    its first run without hand-editing prefs.
 
         from maya_tools.framework import first_run; first_run.reset_tour()
     """
-    from maya_tools.framework.toolbar import toolbar_prefs
-    prefs = toolbar_prefs.load_prefs()
-    onboarding = dict(prefs.get(_ONBOARDING_KEY) or {})
-    onboarding.pop(moment, None)
-    prefs[_ONBOARDING_KEY] = onboarding
-    toolbar_prefs.save_prefs(prefs)
+    from maya_tools.framework import tour_engine
+    tour_engine.reset(moment)
 
 
 # ─────────────────────────────────────────────

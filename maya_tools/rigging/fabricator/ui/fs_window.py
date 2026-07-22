@@ -16,6 +16,7 @@ import traceback
 from pathlib import Path
 
 from PySide6 import QtWidgets, QtCore, QtGui
+from shiboken6 import isValid
 
 import maya.cmds as cmds
 import maya.api.OpenMaya as om
@@ -304,6 +305,13 @@ class FSWindow(QtWidgets.QDialog):
         self._delete_rig_action = QtGui.QAction('Delete Rig...', self)
         self._delete_rig_action.triggered.connect(self._on_delete_rig_action)
         file_menu.addAction(self._delete_rig_action)
+        # Re-entry for the guided tour. Its own separator: this is help,
+        # not a rig operation, and it sits below the destructive row so a
+        # stray click lands here rather than on Delete Rig.
+        file_menu.addSeparator()
+        self._tour_action = QtGui.QAction('Take the Tour', self)
+        self._tour_action.triggered.connect(self._on_take_the_tour)
+        file_menu.addAction(self._tour_action)
         for act in (self._new_rig_action, self._save_rig_action,
                     self._delete_rig_action):
             self.addAction(act)          # keep Ctrl+N / Ctrl+S alive
@@ -574,6 +582,37 @@ class FSWindow(QtWidgets.QDialog):
         # Maya's global Esc. (Delete is deliberately NOT bound — it was
         # overriding Maya's viewport delete.)
         self._install_shortcuts()
+
+    def _on_take_the_tour(self):
+        """File > Take the Tour — run it regardless of the seen-flag, and
+        do not spend the flag (an explicit request is not a first run)."""
+        try:
+            from maya_tools.rigging.fabricator.ui import fabricator_tour
+            fabricator_tour.run(force=True)
+        except Exception as e:
+            self._handle_error(e, brief='Tour failed to start')
+
+    def showEvent(self, event):
+        """First show of the session offers the guided tour, once ever.
+
+        Deferred inside maybe_run_on_open so the splitter has laid out and
+        the anchors have real geometry to point at. Guarded twice over:
+        once here, once inside the tour, because onboarding must never
+        wound the window it is describing. The docked face opts out — a
+        workspaceControl can show during a Maya workspace restore with no
+        one looking at it.
+        """
+        super().showEvent(event)
+        if getattr(self, '_tour_checked', False):
+            return
+        self._tour_checked = True
+        if self._docked or self._compact_mode:
+            return
+        try:
+            from maya_tools.rigging.fabricator.ui import fabricator_tour
+            fabricator_tour.maybe_run_on_open()
+        except Exception:
+            traceback.print_exc()
 
     def _refresh_phase_buttons(self, mode: str):
         """Update label / variant / enabled for the single Build Rig button.
@@ -2285,14 +2324,10 @@ class FSWindow(QtWidgets.QDialog):
         """
         def _do():
             global _win
-            existing = None
-            for w in QtWidgets.QApplication.topLevelWidgets():
-                try:
-                    if w.objectName() == FSWindow.WINDOW_NAME:
-                        existing = w
-                        break
-                except Exception:
-                    continue
+            # Shared finder: a first-match sweep can return a predecessor
+            # that is closed but not yet deleted, which would leave the
+            # live window untouched and build a THIRD one.
+            existing = FSWindow._find_top_level()
             if existing is None:
                 # No top-level instance — but a DOCKED Fabricator is a
                 # child of its workspaceControl, invisible to the
@@ -2328,6 +2363,88 @@ class FSWindow(QtWidgets.QDialog):
             _win.show()
 
         QtCore.QTimer.singleShot(0, _do)
+
+    # Tour anchor ids -> the live widget each card points at. Values are
+    # accessors, not widgets: Build and Unbuild both call _force_reopen(),
+    # which destroys this window and builds a new one, so anything the
+    # tour captured up front is a dangling C++ object by the next step.
+    _TOUR_ANCHORS = {
+        'armature_tools': lambda w: w.skeleton_helpers_bar,
+        'components':     lambda w: w.palette_panel,
+        'rig_outliner':   lambda w: w.canvas_panel,
+        'properties':     lambda w: w.properties_panel,
+        'templates':      lambda w: w.palette_panel,
+        'build_rig':      lambda w: w.build_rig_btn,
+    }
+
+    @staticmethod
+    def _find_top_level():
+        """Best top-level FSWindow, or None.
+
+        There can be TWO at once: _force_reopen closes the old window and
+        constructs the replacement immediately, but the closed one stays
+        in topLevelWidgets until its deleteLater is processed. Taking the
+        first match therefore hands back the DEAD window mid-reopen, whose
+        widgets are all invisible — which is precisely the window the
+        Fabricator tour is pointing at when it crosses a Build or an
+        Unbuild. Prefer a visible instance, newest first.
+        """
+        found = []
+        for w in QtWidgets.QApplication.topLevelWidgets():
+            try:
+                if w.objectName() == FSWindow.WINDOW_NAME:
+                    found.append(w)
+            except RuntimeError:        # C++ side already gone
+                continue
+        for w in reversed(found):
+            try:
+                if w.isVisible():
+                    return w
+            except RuntimeError:
+                continue
+        return found[-1] if found else None
+
+    @staticmethod
+    def current():
+        """The live FSWindow, or None. Found by objectName rather than
+        trusting the module `_win` global, which goes stale on a shelf
+        reload and across _force_reopen."""
+        try:
+            win = FSWindow._find_top_level()
+            if win is not None:
+                return win
+            # A DOCKED Fabricator is a child of its workspaceControl and
+            # invisible to the top-level sweep above. _populate() parks
+            # the live instance on the module's _DOCK_WIN.
+            from maya_tools.rigging.fabricator.ui import fabricator_dock
+            docked = getattr(fabricator_dock, '_DOCK_WIN', None)
+            return docked if (docked is not None and isValid(docked)) else None
+        except Exception:
+            return None
+
+    @staticmethod
+    def widget_for(anchor_id: str):
+        """Live widget for a tour anchor id, or None when there is no
+        window / no such id / the widget is gone. Public seam for the
+        Fabricator tour's cards; callers must handle None. Never raises.
+
+        Resolve LATE — call this at the moment a card is shown, never
+        earlier (see _TOUR_ANCHORS)."""
+        try:
+            win = FSWindow.current()
+            if win is None:
+                return None
+            accessor = FSWindow._TOUR_ANCHORS.get(anchor_id)
+            if accessor is None:
+                return None
+            widget = accessor(win)
+            # A widget whose C++ side is gone, or one hidden by the
+            # current mode, is not something to point at.
+            return widget if (widget is not None
+                              and isValid(widget)
+                              and widget.isVisible()) else None
+        except Exception:
+            return None
 
     @staticmethod
     def show_window():

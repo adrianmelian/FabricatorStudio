@@ -53,6 +53,7 @@ CARD_W = 320            # text-only default (the install tour's width)
 GIF_MAX_W = 420
 GIF_MAX_H = 378
 CARD_W_GIF = GIF_MAX_W + 36     # 18px margin either side of a full-width gif
+BANNER_MAX_H = 64               # brand wordmark header on the bookend cards
 
 
 def fit_size(w: int, h: int, max_w: int, max_h: int):
@@ -189,8 +190,8 @@ class CoachCard:
     def __init__(self, anchor_widget, title, body_text,
                  on_next=None, on_skip=None, advance_probe=None,
                  advance_on_anchor_press=False, next_label='Next',
-                 step=None, total=None, act=None, media='',
-                 parent=None):
+                 step=None, total=None, act=None, media='', banner='',
+                 centered=False, parent=None):
         self._on_next = on_next
         self._on_skip = on_skip
         self._anchor = anchor_widget
@@ -208,9 +209,33 @@ class CoachCard:
                          | QtCore.Qt.WindowType.WindowStaysOnTopHint)
         c.setAttribute(QtCore.Qt.WidgetAttribute.WA_TranslucentBackground)
 
+        self._centered = bool(centered)
+
         lay = QtWidgets.QVBoxLayout(c)
         lay.setContentsMargins(18, NOTCH_H + 14, 18, NOTCH_H + 14)
         lay.setSpacing(8)
+
+        # Brand banner ABOVE everything — the tour's bookend cards (the
+        # welcome gate, the outro) lead with the Fabricator wordmark
+        # rather than a title, same as HoverAnnotation's About card.
+        has_banner = False
+        if banner:
+            try:
+                loaded = load_media(banner, GIF_MAX_W, BANNER_MAX_H)
+            except Exception:
+                loaded = None
+            if loaded is not None:
+                _, obj, bw, bh = loaded
+                lbl = QtWidgets.QLabel()
+                lbl.setStyleSheet('background: transparent;')
+                lbl.setFixedSize(bw, bh)
+                if isinstance(obj, QtGui.QPixmap):
+                    lbl.setPixmap(obj)
+                else:
+                    lbl.setMovie(obj)
+                    obj.start()
+                lay.addWidget(lbl, 0, QtCore.Qt.AlignmentFlag.AlignHCenter)
+                has_banner = True
 
         # Eyebrow: the act name (or STEP) in ember, with a thin rule
         # running right (Adrian's coachmark mockup, 2026-07-19).
@@ -227,6 +252,7 @@ class CoachCard:
 
         title_label = QtWidgets.QLabel(title)
         title_label.setStyleSheet(_mm.COACH_TITLE_QSS)
+        title_label.setVisible(bool(title))
         lay.addWidget(title_label)
 
         body = QtWidgets.QLabel(body_text)
@@ -281,7 +307,7 @@ class CoachCard:
             row.addWidget(nxt)
         lay.addLayout(row)
 
-        c.setFixedWidth(CARD_W_GIF if has_media else CARD_W)
+        c.setFixedWidth(CARD_W_GIF if (has_media or has_banner) else CARD_W)
 
         self._poll = None
         if self._probe is not None:
@@ -339,13 +365,13 @@ class CoachCard:
         c = self.card
         c.adjustSize()
         anchor = self._anchor
-        if anchor is not None:
+        if self._centered or anchor is None:
+            self._center_on_parent()
+        else:
             try:
                 self._place_against(anchor)
             except RuntimeError:        # anchor died between build and show
-                self._fallback_place()
-        else:
-            self._fallback_place()
+                self._center_on_parent()
         c.show()
         c.raise_()
         if self._poll is not None:
@@ -403,12 +429,28 @@ class CoachCard:
         c.move(clamp(cx - w // 2, r.left() + 8, r.right() - w - 8),
                clamp(cy - h // 2, r.top() + 8, r.bottom() - h - 8))
 
-    def _fallback_place(self):
-        host = self.card.parent()
+    def _center_on_parent(self):
+        """Anchorless cards (the welcome gate, the outro) sit centered on
+        the host window, a little above middle so they read as a
+        statement rather than a dialog. Clamped like every other
+        placement: nothing ever lands off-screen."""
+        c = self.card
+        c.notch_side = 'none'
+        host = c.parent()
+        w, h = c.width(), c.height()
         if host is not None:
             geo = host.frameGeometry()
-            self.card.move(geo.x() + geo.width() - self.card.width() - 40,
-                           geo.y() + 90)
+            x = geo.x() + (geo.width() - w) // 2
+            y = geo.y() + int(geo.height() * 0.30)
+        else:
+            geo = QtGui.QGuiApplication.primaryScreen().availableGeometry()
+            x = geo.center().x() - w // 2
+            y = geo.center().y() - h // 2
+        screen = (QtGui.QGuiApplication.screenAt(QtCore.QPoint(x, y))
+                  or QtGui.QGuiApplication.primaryScreen())
+        r = screen.availableGeometry()
+        c.move(max(r.left() + 8, min(x, r.right() - w - 8)),
+               max(r.top() + 8, min(y, r.bottom() - h - 8)))
 
 
 # Cards are top-level Tool windows; Qt parenting alone has let them be
