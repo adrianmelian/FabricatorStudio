@@ -20,7 +20,8 @@ from typing import Iterable, Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QFontDatabase, QIcon, QPixmap
-from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QSizePolicy, QWidget
+from PySide6.QtWidgets import (QFrame, QGroupBox, QLabel, QPushButton,
+                               QSizePolicy, QWidget)
 
 
 # ============================================================
@@ -294,6 +295,24 @@ def pill(text: str, kind: str = "idle", *, parent: Optional[QWidget] = None) -> 
     lbl.setProperty("mindmeld", f"pill-{kind}")
     lbl.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
     return lbl
+
+
+def group_box(title: str, *, accent: bool = False,
+              parent: Optional[QWidget] = None) -> QGroupBox:
+    """Titled group frame around a set of related controls.
+
+    Default is the quiet form: iron_3 outline, ember title. `accent=True`
+    takes the ember outline too, for a group that should read as one
+    named instrument rather than background chrome.
+
+    Ember is the label accent, so naming a region is exactly its job.
+    It never becomes a CTA or a state colour, and one accented group per
+    region is the limit before the emphasis stops meaning anything.
+    """
+    box = QGroupBox(title, parent)
+    if accent:
+        box.setProperty("mindmeld", "accent")
+    return box
 
 
 def horizontal_rule(*, parent: Optional[QWidget] = None) -> QFrame:

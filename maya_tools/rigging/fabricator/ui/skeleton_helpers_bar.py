@@ -2,6 +2,11 @@
 """SkeletonHelpersBar — the Armature toolbar (right-click-menu era,
 2026-07-19).
 
+Presented as an ember-outlined group box titled "Armature Tools"
+(Adrian, 2026-07-21): the four menus and the Symmetry toggle are one
+instrument, and the frame is what says so. Ember is the label accent,
+so naming a region is its job.
+
 Four MenuButtons — SKELETON / AIMERS / MIRROR / DUPLICATE — plus the
 checkable Symmetry toggle (plasma green; ember orange while active).
 Right-click drops the group's menu (the hover popover panels are
@@ -118,7 +123,21 @@ class SkeletonHelpersBar(QtWidgets.QWidget):
             traceback.print_exc()
 
     def create_layout(self):
-        root = QtWidgets.QHBoxLayout(self)
+        # Ember-outlined group box titled "Armature Tools" (Adrian,
+        # 2026-07-21). These four menus plus Symmetry are one
+        # instrument, and unframed they read as loose chrome sitting
+        # under the banner. The frame wraps the bar's own contents
+        # rather than the bar being wrapped by FSWindow, so
+        # refresh_state's setVisible still hides the whole thing and
+        # the host needs no change.
+        outer = QtWidgets.QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.group = mindmeld_style.group_box('Armature Tools', accent=True)
+        outer.addWidget(self.group)
+
+        root = QtWidgets.QHBoxLayout(self.group)
+        # Zero here on purpose: the group box's own QSS padding is the
+        # single source of inset, and layout margins would stack on top.
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(4)
 

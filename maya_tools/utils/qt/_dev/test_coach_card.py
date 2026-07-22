@@ -122,6 +122,36 @@ def test_fit_movie_contract():
           coach_card.fit_movie('nope_does_not_exist.gif', 100, 100) is None)
 
 
+def test_fit_size():
+    from maya_tools.utils.qt import hover_annotation as ha
+    fit = coach_card.fit_size
+    W, H = coach_card.GIF_MAX_W, coach_card.GIF_MAX_H
+
+    # The house capture size must land 1:1 on BOTH cards — a clip shot to
+    # spec should never be resampled.
+    check('house 420x378 renders 1:1 on a tour card',
+          fit(420, 378, W, H) == (420, 378))
+    check('house 420x378 renders 1:1 on a hover card',
+          fit(420, 378, ha.GIF_MAX_W, ha.GIF_MAX_H) == (420, 378))
+    check('both cards cap to the same box',
+          (W, H) == (ha.GIF_MAX_W, ha.GIF_MAX_H))
+
+    check('never upscales a small clip', fit(100, 50, W, H) == (100, 50))
+    check('an oversized clip scales down width-bound',
+          fit(840, 756, W, H) == (420, 378))
+    check('a landscape clip stays width-bound',
+          fit(840, 200, W, H) == (420, 100))
+    check('a very tall clip goes height-bound',
+          fit(400, 1512, W, H) == (100, 378))
+    check('zero-sized is None', fit(0, 10, W, H) is None)
+
+
+def test_gif_card_fits_a_full_width_clip():
+    usable = coach_card.CARD_W_GIF - 36      # 18px margin either side
+    check('a full-width gif fits the widened card with no clipping',
+          usable >= coach_card.GIF_MAX_W)
+
+
 def test_missing_gif_degrades():
     c = coach_card.CoachCard(None, 'T', 'B', gif='nope_does_not_exist.gif')
     check('a missing gif leaves a text-only card at the narrow width',

@@ -25,8 +25,13 @@ from maya_tools.utils.qt.mindmeld import mindmeld_style as _mm
 
 
 HOVER_DELAY_MS = 450          # dwell before the card appears
-GIF_MAX_W = 420               # gif display cap (aspect-preserved, never upscaled)
-GIF_MAX_H = 260
+# Gif display cap (aspect-preserved, never upscaled). Matches
+# coach_card's box exactly, so one clip shot at the house 420x378 renders
+# 1:1 on a hover card and on a tour card alike. The height rose from 260
+# on 2026-07-21 to stop tall panel captures letterboxing down to a stamp;
+# no shipped gif existed at the time, so nothing re-scaled.
+GIF_MAX_W = 420
+GIF_MAX_H = 378
 CARD_MAX_W = 460
 BANNER_MAX_H = 48             # brand-banner header cap (aspect-preserved)
 

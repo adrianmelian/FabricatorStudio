@@ -113,6 +113,16 @@ QGroupBox::title {
     color: #FF7A3D;
 }
 
+/* Accent variant — ember outline, not just an ember title. For a group
+   of related tools that should read as one labelled instrument rather
+   than as background chrome (first use: Fabricator's Armature Tools bar,
+   Adrian 2026-07-21). Ember is the label/attention accent, so an outline
+   naming a region is exactly its job; it never becomes a CTA or a state.
+   Use sparingly, one accented group per region, or the emphasis is spent. */
+QGroupBox[mindmeld="accent"] {
+    border: 1px solid #FF7A3D;
+}
+
 /* ============================== LABELS ============================== */
 
 QLabel {

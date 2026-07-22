@@ -38,14 +38,36 @@ from maya_tools.utils.qt.mindmeld import mindmeld_style as _mm
 NOTCH_H = 10
 PROBE_MS = 200
 CARD_W = 320            # text-only default (the install tour's width)
-CARD_W_GIF = 380        # widened when a card carries a gif
-GIF_MAX_W = 340
-GIF_MAX_H = 190
+
+# Gif well. 420x378 is the house capture size (Adrian, 2026-07-21), and
+# the caps match it EXACTLY so a clip shot to spec renders 1:1 with no
+# resampling at all. HoverAnnotation caps to the same box, so one file
+# looks identical on a tour card and on a hover card.
+#
+# The height is generous on purpose: half these clips frame a tall Maya
+# panel (the Rig Outliner, the Components list), and a landscape-only cap
+# would letterbox them down to a stamp. A landscape clip is unaffected,
+# it stays width-bound.
+GIF_MAX_W = 420
+GIF_MAX_H = 378
+CARD_W_GIF = GIF_MAX_W + 36     # 18px margin either side of a full-width gif
+
+
+def fit_size(w: int, h: int, max_w: int, max_h: int):
+    """(w, h) scaled to fit the caps, aspect-preserved, NEVER upscaled.
+
+    Pure, so the never-upscale and exact-fit contracts are testable
+    without an encoder to hand.
+    """
+    if w <= 0 or h <= 0:
+        return None
+    scale = min(max_w / float(w), max_h / float(h), 1.0)
+    return int(w * scale), int(h * scale)
 
 
 def fit_movie(path: str, max_w: int, max_h: int):
-    """(QMovie, w, h) scaled to fit the caps, aspect-preserved and NEVER
-    upscaled, or None when the path is empty / unreadable / zero-sized.
+    """(QMovie, w, h) fitted per fit_size, or None when the path is empty
+    / unreadable / zero-sized.
 
     Single gif renderer for the whole Qt layer: HoverAnnotation and
     CoachCard both come through here, so the two cards can never drift
@@ -57,11 +79,10 @@ def fit_movie(path: str, max_w: int, max_h: int):
     probe.jumpToFrame(0)
     size = probe.currentImage().size()
     probe.deleteLater()
-    w, h = size.width(), size.height()
-    if w <= 0 or h <= 0:
+    fitted = fit_size(size.width(), size.height(), max_w, max_h)
+    if fitted is None:
         return None
-    scale = min(max_w / float(w), max_h / float(h), 1.0)
-    dw, dh = int(w * scale), int(h * scale)
+    dw, dh = fitted
     movie = QtGui.QMovie(path)
     movie.setCacheMode(QtGui.QMovie.CacheAll)
     movie.setScaledSize(QtCore.QSize(dw, dh))
