@@ -7,6 +7,41 @@ Format: `## [date] — short title` then bullet points. Keep entries brief.
 
 ---
 
+## [2026-07-22] — Fabricator's guided tour
+
+Fabricator opens into an empty window, and its two ways in (File > New Rig, or
+a template in the Components panel) are the two least visible controls in it.
+This is the fix for that first minute.
+
+- **A guided tour of Fabricator**, once ever on your first open, and any time
+  after from **File > Take the Tour**. Eight stops in two acts. *The Layout*
+  names each region of the window: Armature Tools, Components, Rig Outliner,
+  Properties. *First Rig Walkthrough* is hands-on and builds a rig with you:
+  load a template, build it, drop back to Edit Mode, done.
+- **The hands-on stops wait for you.** They advance when the template actually
+  loads, when the build actually finishes, when the unbuild actually lands, and
+  each one says what it is waiting for. Nothing to click past, and skipping asks
+  first.
+- **Cards carry clips and stills**, and every card stays fully on screen no
+  matter where the panel it points at sits.
+- **Armature Tools**: the skeleton toolbar is now a labelled group, and the
+  Components / Rig Outliner / Properties headers pick up the same accent, so
+  the window reads as four named regions instead of loose chrome.
+
+Also in this batch, from the same pass:
+
+- **Solo handles**: drag one joint without taking its whole subtree with it.
+  Show/Hide and Reset live under Skeleton.
+- **Straighten Mid Joint**: the classic knee/elbow fix, corrected on one axis
+  so the deliberate forward bend survives. It picks the error axis and tells you
+  which it chose.
+- **Aim All at Child**: points every aimer down its chain in one pass. The
+  repair for an imported skeleton whose aimers all sit on Local.
+- **Export a single entry or clip** by right-clicking its row, no checkboxes or
+  multi-select needed.
+
+---
+
 ## [2026-07-21] — v1.0.1: first-install fixes
 
 First patch after launch, from the first outside installs.
