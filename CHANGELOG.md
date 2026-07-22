@@ -7,7 +7,7 @@ Format: `## [date] - short title` then bullet points. Keep entries brief.
 
 ---
 
-## [2026-07-22] - Fabricator's guided tour
+## [2026-07-22] - v1.1.0: Fabricator's guided tour
 
 Fabricator opens into an empty window, and its two ways in (File > New Rig, or
 a template in the Components panel) are the two least visible controls in it.
