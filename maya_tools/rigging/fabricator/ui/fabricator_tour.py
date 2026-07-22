@@ -3,15 +3,20 @@
 unnumbered bookend cards. Spec: MrMiata workspace/2026-07-21_fabricator-tour.
 
     welcome gate
-    ACT 1 - THE LAYOUT   Armature Tools, Components, Rig Outliner, Properties
-    ACT 2 - BUILD ONE    Templates, Build the rig, Changing it later
+    ACT 1 - THE LAYOUT              Armature Tools, Components,
+                                    Rig Outliner, Properties
+    ACT 2 - FIRST RIG WALKTHROUGH   intro, Templates, Build the rig,
+                                    Changing it later
     outro
 
 **Act 1 is read, act 2 is do.** Every act-1 stop names a region of the
-window and advances on Next. Every act-2 stop advances only when the real
-thing happens: the template actually loads, the build actually completes,
-the unbuild actually lands. No act-2 stop can be clicked past without
-doing it, which is why they carry no Next button at all.
+window and advances on Next. Every act-2 stop after its intro advances
+only when the real thing happens: the template actually loads, the build
+actually completes, the unbuild actually lands. None of them can be
+clicked past, which is why they carry no Next button at all — and why
+each one spells its action out in a `hint`. Without that, Skip is the
+only thing on the card that looks clickable and the card reads as
+"skip or nothing" (Adrian hit this on the templates card).
 
 Two things the runner has to get right here, both recorded in the spec:
 
@@ -40,7 +45,7 @@ from maya_tools.framework.tour_engine import Step
 TOUR_FLAG = 'fabricator_tour'
 
 _ACT1 = 'The Layout'
-_ACT2 = 'Build One'
+_ACT2 = 'First Rig Walkthrough'
 
 # maya_tools/docs/media/tour/ — this module sits at
 # maya_tools/rigging/fabricator/ui/fabricator_tour.py
@@ -112,7 +117,8 @@ def steps() -> list:
              'Press Edit Rig to drop back to the skeleton and I will pick '
              'up from there.',
              anchor='build_rig', advance='probe', probe=_is_editable,
-             skip_if=lambda: not _is_built(), settle=True),
+             skip_if=lambda: not _is_built(), settle=True,
+             hint='Press Edit Rig to continue.'),
 
         # ── ACT 1 — THE LAYOUT ────────────────────────────────────────
         Step('armature_tools', 'Armature Tools',
@@ -143,28 +149,42 @@ def steps() -> list:
              'of them for a card like this one.',
              act=_ACT1, anchor='properties', media=_media('properties.png')),
 
-        # ── ACT 2 — BUILD ONE ─────────────────────────────────────────
-        # Each of these advances ONLY on the real thing happening. No
-        # Next button, so the tour cannot be clicked past without doing it.
+        # ── ACT 2 — FIRST RIG WALKTHROUGH ─────────────────────────────
+        # After the intro, each stop advances ONLY on the real thing
+        # happening, carries no Next button, and states its action in a
+        # hint so Skip never looks like the only option.
+        #
+        # Act-2 opener. Names what is about to happen and gets the user
+        # into a clean scene first, so the template lands somewhere sane.
+        # Next-driven on purpose: this is the last card before the tour
+        # starts asking for real actions.
+        Step('walkthrough_intro', "Let's build your first rig",
+             'The rest of the tour is hands-on. Start a new scene if this '
+             'one has anything in it, then continue.',
+             act=_ACT2, next_label='Continue'),
+
         Step('templates', 'Templates',
              'A template is a whole skeleton with its rig already assembled '
-             'on it, ready to build. Double-click Simple Biped to load one.',
+             'on it, ready to build.',
              act=_ACT2, anchor='templates', media=_media('template.gif'),
              advance='probe', probe=_has_rig,
-             skip_if=_has_rig, settle=True),
+             skip_if=_has_rig, settle=True,
+             hint='Drag Simple Biped into the scene to continue, '
+                  'or double-click it.'),
 
         Step('build', 'Build the rig',
              'Fabricator checks the skeleton, bakes the orientation, and '
-             'builds the controls. Press Build Rig and watch it go.',
+             'builds the controls.',
              act=_ACT2, anchor='build_rig', media=_media('build.gif'),
-             advance='probe', probe=_is_built, settle=True),
+             advance='probe', probe=_is_built, settle=True,
+             hint='Press Build Rig to continue.'),
 
         Step('edit', 'Changing it later',
-             'Everything structural happens in Edit Mode. Press Edit Rig to '
-             'drop back to the skeleton. Nothing is lost, and Build Rig '
-             'puts it all back.',
+             'Everything structural happens in Edit Mode. Nothing is lost '
+             'going back, and Build Rig puts it all together again.',
              act=_ACT2, anchor='build_rig', media=_media('unbuild.gif'),
-             advance='probe', probe=_is_editable, settle=True),
+             advance='probe', probe=_is_editable, settle=True,
+             hint='Press Edit Rig to continue.'),
 
         # Bookend: the payoff.
         Step('outro', 'That\'s the round trip',

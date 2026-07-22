@@ -94,11 +94,17 @@ class Step:
                 never instruct an already-done action.
     settle      wait SETTLE_MS before showing the NEXT card (set on steps
                 whose action rebuilds the window).
+    hint        the action that advances a 'probe' step, spelled out in
+                the button row. Without one, a probe card shows Skip and
+                nothing else, and reads as though skipping is the only
+                thing on offer (Adrian hit exactly this on the templates
+                card, 2026-07-21). Required in spirit on every probe step.
     """
 
     def __init__(self, id, title, body, *, act=None, anchor='', media='',
                  banner='', advance='next', probe=None, skip_if=None,
-                 next_label='Next', settle=False, centered=False):
+                 next_label='Next', settle=False, centered=False,
+                 hint=''):
         self.id = id
         self.title = title
         self.body = body
@@ -112,6 +118,7 @@ class Step:
         self.next_label = next_label
         self.settle = settle
         self.centered = centered
+        self.hint = hint
 
     def __repr__(self):
         return f'<Step {self.id!r} act={self.act!r} advance={self.advance!r}>'
@@ -226,11 +233,19 @@ class Tour:
                     self._show(index + 1)
                     return
 
+            # A resolver may hand back (widget, rect) to point at a
+            # region inside a big widget rather than its centre.
+            anchor_rect = None
+            if isinstance(anchor, tuple):
+                anchor, anchor_rect = anchor
+
             n, total = self._numbers.get(step.id, (None, None))
             from maya_tools.utils.qt import coach_card
 
             card = coach_card.CoachCard(
                 anchor, step.title, step.body,
+                anchor_rect=anchor_rect,
+                hint=step.hint,
                 media=step.media,
                 banner=step.banner,
                 on_next=lambda i=index, s=step: self._advance_from(i, s.settle),

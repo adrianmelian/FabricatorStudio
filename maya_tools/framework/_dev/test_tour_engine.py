@@ -176,22 +176,26 @@ def test_fabricator_tour_shape():
     ids = [s.id for s in steps]
     check('tour has the authored stops in order',
           ids == ['welcome', 'redirect', 'armature_tools', 'components',
-                  'rig_outliner', 'properties', 'templates', 'build',
-                  'edit', 'outro'])
+                  'rig_outliner', 'properties', 'walkthrough_intro',
+                  'templates', 'build', 'edit', 'outro'])
 
     n = tour_engine.number_steps(steps)
     check('act 1 numbers 1..4 of 4', n['armature_tools'] == (1, 4)
           and n['properties'] == (4, 4))
-    check('act 2 restarts at 1 of 3',
-          n['templates'] == (1, 3) and n['edit'] == (3, 3))
     check('the bookends are unnumbered',
           'welcome' not in n and 'outro' not in n)
 
-    act2 = [s for s in steps if s.act == 'Build One']
-    check('every act-2 stop advances on a real event',
-          all(s.advance == 'probe' and s.probe for s in act2))
-    check('every act-2 stop settles for the window rebuild',
-          all(s.settle for s in act2))
+    check('act 2 restarts at 1 of 4',
+          n['walkthrough_intro'] == (1, 4) and n['edit'] == (4, 4))
+
+    act2 = [s for s in steps if s.act == 'First Rig Walkthrough']
+    hands_on = [s for s in act2 if s.id != 'walkthrough_intro']
+    check('every hands-on act-2 stop advances on a real event',
+          all(s.advance == 'probe' and s.probe for s in hands_on))
+    check('every hands-on act-2 stop settles for the window rebuild',
+          all(s.settle for s in hands_on))
+    check('the act-2 intro is Next-driven',
+          steps[[x.id for x in steps].index('walkthrough_intro')].advance == 'next')
 
     act1 = [s for s in steps if s.act == 'The Layout']
     check('every act-1 stop advances on Next',
@@ -199,9 +203,33 @@ def test_fabricator_tour_shape():
     check('every act-1 stop points at something',
           all(s.anchor for s in act1))
 
+    check('the templates card names its action',
+          'drag' in dict((x.id, x.hint) for x in steps)['templates'].lower())
+
     check('bookends are centered and anchorless',
           all(s.centered and not s.anchor
               for s in steps if s.id in ('welcome', 'outro')))
+
+
+def test_every_probe_step_states_its_action():
+    """A probe step has no Next button, so Skip is the only thing on the
+    card that looks clickable. Without a hint the user reads that as
+    'skip or nothing' and never realises the card is waiting on them —
+    which is exactly what happened on the templates card."""
+    from maya_tools.rigging.fabricator.ui import fabricator_tour as ft
+    for s in ft.steps():
+        if s.advance == 'probe':
+            check(f'{s.id}: states the action that advances it',
+                  bool(s.hint) and 'continue' in s.hint.lower())
+
+
+def test_hint_renders_on_the_card():
+    steps = [Step('p', 't', 'b', advance='probe', probe=lambda: False,
+                  hint='Press Build Rig to continue.')]
+    t, _ = _run(steps, lambda aid: None)
+    labels = [w.text() for w in t._live[0].card.findChildren(QtWidgets.QLabel)]
+    check('the hint is on the card',
+          any('Press Build Rig to continue.' in x for x in labels))
 
 
 def test_fabricator_tour_media_all_resolve():

@@ -191,10 +191,12 @@ class CoachCard:
                  on_next=None, on_skip=None, advance_probe=None,
                  advance_on_anchor_press=False, next_label='Next',
                  step=None, total=None, act=None, media='', banner='',
-                 centered=False, parent=None):
+                 centered=False, anchor_rect=None, hint='',
+                 parent=None):
         self._on_next = on_next
         self._on_skip = on_skip
         self._anchor = anchor_widget
+        self._anchor_rect = anchor_rect
         self._probe = advance_probe
         self._closed = False
         self._press_filter = None
@@ -284,6 +286,20 @@ class CoachCard:
                     well.setPixmap(obj)
                 lay.addWidget(well, 0, QtCore.Qt.AlignmentFlag.AlignHCenter)
                 has_media = True
+
+        # What advances this card, spelled out. A probe step has no Next
+        # button by design, which leaves Skip as the only thing that
+        # LOOKS clickable — users read that as "skip or nothing" and miss
+        # that the card is waiting on them (Adrian, 2026-07-21). Plasma,
+        # because it names the action.
+        if hint:
+            hint_label = QtWidgets.QLabel(hint)
+            hint_label.setWordWrap(True)
+            hint_label.setStyleSheet(
+                f"color: {t['plasma']}; background: transparent; "
+                f"font-size: 12px; font-weight: 700;")
+            lay.addSpacing(2)
+            lay.addWidget(hint_label)
 
         lay.addSpacing(4)
         row = QtWidgets.QHBoxLayout()
@@ -393,8 +409,18 @@ class CoachCard:
         c = self.card
         w, h = c.width(), c.height()
         g = self._GAP
-        origin = anchor.mapToGlobal(QtCore.QPoint(0, 0))
-        ax, ay, aw, ah = origin.x(), origin.y(), anchor.width(), anchor.height()
+        # An explicit rect points at a REGION inside the widget (a tree
+        # section, a row) instead of the widget's whole box. Pointing at
+        # a full-height panel aims the notch at its middle, nowhere near
+        # the rows the card is describing.
+        rect = self._anchor_rect
+        if rect is not None:
+            origin = anchor.mapToGlobal(rect.topLeft())
+            aw, ah = rect.width(), rect.height()
+        else:
+            origin = anchor.mapToGlobal(QtCore.QPoint(0, 0))
+            aw, ah = anchor.width(), anchor.height()
+        ax, ay = origin.x(), origin.y()
         screen = (QtGui.QGuiApplication.screenAt(origin)
                   or QtGui.QGuiApplication.primaryScreen())
         r = screen.availableGeometry()

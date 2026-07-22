@@ -2373,7 +2373,10 @@ class FSWindow(QtWidgets.QDialog):
         'components':     lambda w: w.palette_panel,
         'rig_outliner':   lambda w: w.canvas_panel,
         'properties':     lambda w: w.properties_panel,
-        'templates':      lambda w: w.palette_panel,
+        # A (widget, rect) pair points at the TEMPLATES rows rather than
+        # at the middle of a full-height panel; falls back to the panel.
+        'templates':      lambda w: (w.palette_panel.templates_anchor()
+                                     or w.palette_panel),
         'build_rig':      lambda w: w.build_rig_btn,
     }
 
@@ -2437,12 +2440,16 @@ class FSWindow(QtWidgets.QDialog):
             accessor = FSWindow._TOUR_ANCHORS.get(anchor_id)
             if accessor is None:
                 return None
-            widget = accessor(win)
+            got = accessor(win)
+            # An accessor may return a bare widget, or a (widget, rect)
+            # pair when the card should point at a region inside it.
+            widget = got[0] if isinstance(got, tuple) else got
             # A widget whose C++ side is gone, or one hidden by the
             # current mode, is not something to point at.
-            return widget if (widget is not None
-                              and isValid(widget)
-                              and widget.isVisible()) else None
+            if (widget is None or not isValid(widget)
+                    or not widget.isVisible()):
+                return None
+            return got
         except Exception:
             return None
 

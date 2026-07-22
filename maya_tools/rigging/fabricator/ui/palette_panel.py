@@ -365,6 +365,33 @@ class PalettePanel(QtWidgets.QWidget):
             # "double annotation" bug).
             item.setData(0, _ROLE_ANNO_TEXT, tip)
 
+    def templates_anchor(self):
+        """(viewport, rect) covering the TEMPLATES section, for the tour
+        to point at, or None.
+
+        The whole panel is the wrong target: a card centered on a
+        full-height panel points at its middle, nowhere near the
+        templates (Adrian, 2026-07-21). The rect spans the TEMPLATES
+        header plus its visible children, so the notch lands on the rows
+        the card is actually talking about.
+
+        Returns None when the section is collapsed or scrolled out of
+        view; the caller falls back to the panel, since a card pointing
+        roughly at the right panel beats no card at all.
+        """
+        try:
+            root = self._templates_root
+            rect = self.tree.visualItemRect(root)
+            if not rect.isValid() or rect.height() <= 0:
+                return None
+            if root.isExpanded() and root.childCount():
+                last = self.tree.visualItemRect(root.child(root.childCount() - 1))
+                if last.isValid() and last.bottom() > rect.bottom():
+                    rect.setBottom(last.bottom())
+            return self.tree.viewport(), rect
+        except Exception:
+            return None
+
     def menu_for_canvas_selection(self) -> QtWidgets.QMenu:
         """Build an 'Add Component' QMenu showing every Component."""
         menu = QtWidgets.QMenu('Add Component')
