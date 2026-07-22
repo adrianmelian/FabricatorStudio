@@ -159,6 +159,53 @@ def test_skip_ends_the_whole_tour():
     check('Skip on any card ends the tour', ended['v'] is True)
 
 
+def test_skip_confirm_gating():
+    """Mid-tour Skip asks first; a 'no' leaves the card exactly where it
+    was, and the first card never asks (that card IS the offer)."""
+    steps = [Step('a', 't', 'b'), Step('b', 't', 'b'), Step('c', 't', 'b')]
+    t, ended = _run(steps, lambda aid: None)
+    check('the first card does not second-guess a decline',
+          t._confirm_skip() is True)
+
+    t._advance_from(0, False)           # now on card 2
+    asked = {'n': 0}
+
+    def say_no():
+        asked['n'] += 1
+        return False
+
+    card = t._live[-1]
+    card._confirm_skip = say_no
+    card._request_skip()
+    check('a mid-tour Skip asks first', asked['n'] == 1)
+    check('answering no keeps the card alive', card._closed is False)
+    check('answering no does not end the tour', ended['v'] is False)
+
+    card._confirm_skip = lambda: True
+    card._request_skip()
+    check('answering yes ends the tour', ended['v'] is True)
+
+
+def test_broken_confirm_never_traps_the_user():
+    """A prompt that raises must not lock someone into a tour they are
+    trying to leave."""
+    steps = [Step('a', 't', 'b'), Step('b', 't', 'b')]
+    t, ended = _run(steps, lambda aid: None)
+    t._advance_from(0, False)
+    card = t._live[-1]
+
+    def boom():
+        raise RuntimeError('no display')
+
+    card._confirm_skip = boom
+    card._request_skip()
+    check('a raising confirm leaves the card up rather than skipping blind',
+          card._closed is False)
+    # ...but the engine's own confirm fails OPEN, so the escape still works.
+    check("the engine's confirm fails open on error",
+          tour_engine.Tour([], lambda a: None)._confirm_skip() is True)
+
+
 def test_on_end_fires_exactly_once():
     hits = []
     t = tour_engine.Tour([Step('a', 't', 'b')], lambda a: None,

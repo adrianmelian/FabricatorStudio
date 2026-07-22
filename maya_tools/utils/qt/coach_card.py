@@ -192,11 +192,12 @@ class CoachCard:
                  advance_on_anchor_press=False, next_label='Next',
                  step=None, total=None, act=None, media='', banner='',
                  centered=False, anchor_rect=None, hint='',
-                 parent=None):
+                 confirm_skip=None, parent=None):
         self._on_next = on_next
         self._on_skip = on_skip
         self._anchor = anchor_widget
         self._anchor_rect = anchor_rect
+        self._confirm_skip = confirm_skip
         self._probe = advance_probe
         self._closed = False
         self._press_filter = None
@@ -315,7 +316,7 @@ class CoachCard:
             row.addWidget(dots_label)
         row.addStretch()
         skip = _mm.button('Skip', kind='ghost')
-        skip.clicked.connect(lambda: self._close(self._on_skip))
+        skip.clicked.connect(self._request_skip)
         row.addWidget(skip)
         if self._probe is None:
             nxt = _mm.button(next_label, kind='primary')
@@ -345,6 +346,23 @@ class CoachCard:
 
             self._press_filter = _PressWatch(c)
             anchor_widget.installEventFilter(self._press_filter)
+
+    def _request_skip(self):
+        """Skip, via confirm_skip when one is supplied.
+
+        The card must still be up while the question is asked, so this
+        cannot go through _close: a user who says "no" has to find their
+        card exactly where they left it.
+        """
+        if self._confirm_skip is not None:
+            try:
+                if not self._confirm_skip():
+                    return              # card stays, nothing spent
+            except Exception:
+                import traceback
+                traceback.print_exc()
+                return                  # a broken prompt never skips
+        self._close(self._on_skip)
 
     def _check_probe(self):
         try:

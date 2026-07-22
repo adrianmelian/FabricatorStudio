@@ -186,6 +186,7 @@ class Tour:
         self._numbers = number_steps(self._steps)
         self._ended = False
         self._live = []
+        self._shown = 0
 
     def start(self) -> None:
         self._show(0)
@@ -202,6 +203,28 @@ class Tour:
             except Exception:
                 import traceback
                 traceback.print_exc()
+
+    def _confirm_skip(self) -> bool:
+        """Ask before abandoning a tour in progress. True = really skip.
+
+        NOT asked on the first card: that one IS the offer, and
+        second-guessing someone who just declined a tour is nagging. From
+        the second card on, they have invested something and a stray
+        click on Skip costs them the rest of it.
+        """
+        if self._shown <= 1:
+            return True
+        try:
+            from maya_tools.utils.qt.confirm_card import confirm
+            return confirm(
+                'Skip the rest of the tour?',
+                'You can run it again any time from File > Take the Tour.',
+                ok_label='Skip Tour', cancel_label='Keep Going',
+                recommend_cancel=True, parent=self._parent)
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            return True     # a broken prompt must not trap the user IN
 
     def _advance_from(self, index: int, settle: bool) -> None:
         """Move to the step after `index`, optionally after a breather."""
@@ -246,6 +269,7 @@ class Tour:
                 anchor, step.title, step.body,
                 anchor_rect=anchor_rect,
                 hint=step.hint,
+                confirm_skip=self._confirm_skip,
                 media=step.media,
                 banner=step.banner,
                 on_next=lambda i=index, s=step: self._advance_from(i, s.settle),
@@ -258,6 +282,7 @@ class Tour:
                 parent=self._parent)
             self._live.append(card)
             coach_card.keep(card)
+            self._shown += 1
             card.show()
         except Exception:
             import traceback
