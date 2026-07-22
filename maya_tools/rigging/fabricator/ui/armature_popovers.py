@@ -27,15 +27,36 @@ def joints_rows(bar):
          'their counterparts with FollowJoint components. Run at '
          'the end of a skeleton build; re-run to re-snap.',
          bar.build_engine_ik_requested.emit),
+        None,
+        ('Straighten Mid Joint',
+         'Select a knee/elbow (or its ctrl) and straighten it on ONE '
+         'axis, keeping its deliberate bend on the other two — the '
+         'leg reads straight head-on, the knee still pokes forward. '
+         'Picks the error axis automatically and says which it chose.',
+         bar.straighten_mid_requested.emit),
+        None,
+        ('Show / Hide Solo Handles',
+         'Toggle the plasma solo cages. Dragging a solo handle moves '
+         'ONLY that joint and leaves every joint below it put — the '
+         'main ctrl still drags the whole subtree.',
+         bar.solo_visibility_toggle_requested.emit),
+        ('Reset Solo Handles',
+         'Zero every solo nudge (or just the selected joints\'), '
+         'without moving the subtree.',
+         bar.solo_reset_requested.emit),
     ]
 
 
 def aimers_rows(bar):
     return [
-        ('Aim Joints at Aimers',
-         'Bake every joint\'s orientation to its aimer, then '
-         'rebuild the Armature (aimers restored).',
-         bar.aim_joints_requested.emit),
+        ('Aim All at Child',
+         'Point every aimer down its chain: one child = aim at it, '
+         'several = the chain continuation (the twist stub loses), '
+         'end joints copy their parent\'s frame. The fix for an '
+         'imported skeleton where every aimer sits on Local and '
+         'nothing aims at anything. OVERWRITES authored targets and '
+         'twists — confirms first.',
+         bar.aim_all_at_child_requested.emit),
         ('Mirror Selected Aimers',
          'Copy the selected aimer(s) onto their opposite-side '
          'counterparts (name flip via side tokens). One-shot, and '
@@ -55,6 +76,16 @@ def aimers_rows(bar):
         ('Show / Hide Aimers',
          'Toggle the _aimers display layer.',
          bar.aimers_visibility_toggle_requested.emit),
+        None,
+        # Last, behind its own divider (Adrian, 2026-07-21): this is the
+        # COMMIT. Everything above stages orientation on the aimers and
+        # is reversible by eye; this bakes it into the joints and
+        # rebuilds. Same shape as the standalone tool, where Orient All
+        # Joints is the tall primary button at the bottom.
+        ('Aim Joints at Aimers',
+         'Bake every joint\'s orientation to its aimer, then '
+         'rebuild the Armature (aimers restored).',
+         bar.aim_joints_requested.emit),
     ]
 
 

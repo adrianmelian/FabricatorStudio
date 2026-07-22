@@ -23,6 +23,16 @@ from maya_tools.rigging.fabricator.modules import get_component_class
 
 _MENU_NAME = 'ks_animation_marking_menu'
 
+# Armature edit-stage suffixes — armature.py's naming contract, spelled
+# out locally the same way armature_mirror.py / canvas_panel.py already
+# do for their own resolution. This menu is registered as the ANIMATION
+# marking menu, but it is really "context menu for whatever KS thing
+# you clicked": armature ctrls carry no fab_role/fab_owner tags (they
+# are per-JOINT placement objects, not component anim ctrls), so they
+# branch here BEFORE the role gate instead of dying on it.
+_AMT_CTRL_SUFFIX = '_amt_CTL'
+_AMT_SOLO_SUFFIX = '_amtSolo'
+
 
 def register_menu() -> str:
     """Create (or recreate) the persistent KS animation marking menu.
@@ -60,6 +70,14 @@ def _build_menu_items(*_args) -> None:
         cmds.menuItem(parent=_MENU_NAME, label='(no selection)', enable=False)
         return
     ctrl = sel[0]
+
+    # Armature edit-stage branch (Kris request, 2026-07-21): solo-swap
+    # entries for armature ctrls / solo handles, which have no role tag.
+    kind, jnt = _armature_context(ctrl)
+    if kind:
+        _build_armature_items(kind, jnt)
+        return
+
     # Belt-and-braces: fab_role preferred, ksfab_role fallback for a rig
     # not yet rebuilt/migrated past the 2026-07 rename — remove after v1.
     role_attr = ks_nodes.resolve_ctrl_tag_attr(ctrl, 'fab_role')
@@ -104,6 +122,78 @@ def _build_menu_items(*_args) -> None:
                 command=lambda *_, action=a, cid=component_id, c=ctrl:
                 _dispatch(action, cid, c),
             )
+
+
+def _armature_context(node: str) -> tuple:
+    """('ctrl'|'solo'|'', joint) — is `node` an Armature edit-stage
+    object, and for which joint?
+
+    Name-suffix resolution against a confirmed live joint, the same
+    contract every other consumer of armature.py's naming uses
+    (armature_mirror._side_of_selection, canvas_panel's viewport sync).
+    A node that merely LOOKS suffixed but has no matching joint returns
+    ('', '') and falls through to the normal role-tag path — never a
+    guess."""
+    short = node.split('|')[-1]
+    for kind, suffix in (('ctrl', _AMT_CTRL_SUFFIX),
+                         ('solo', _AMT_SOLO_SUFFIX)):
+        if short.endswith(suffix):
+            jnt = short[:-len(suffix)]
+            if (cmds.objExists(jnt)
+                    and cmds.nodeType(jnt) == 'joint'):
+                return kind, jnt
+    return '', ''
+
+
+def _build_armature_items(kind: str, jnt: str) -> None:
+    """Menu items for the Armature edit stage: the solo-nudge swap.
+
+    On the main ctrl: 'Nudge This Joint' hides the ctrl's shapes and
+    reveals the solo cage — one clickable thing where the joint is,
+    moving ONLY that joint. On the cage: 'Back to Ctrl' restores, and
+    'Zero This Nudge' snaps the joint back onto its ctrl. Handlers are
+    armature.py app functions; this menu stays a thin caller."""
+    from maya_tools.rigging.fabricator import armature
+
+    cmds.menuItem(parent=_MENU_NAME, divider=True, dividerLabel='Armature')
+    if kind == 'ctrl':
+        if armature.solo_handle_for_joint(jnt):
+            cmds.menuItem(
+                parent=_MENU_NAME, label='Nudge This Joint',
+                annotation='Swap to the solo cage: move ONLY this '
+                           'joint, children stay put.',
+                command=lambda *_, j=jnt: _run_armature_action(
+                    'Nudge This Joint', armature.enter_solo, j),
+            )
+        else:
+            cmds.menuItem(
+                parent=_MENU_NAME, enable=False,
+                label='(no solo handle — rebuild the Armature)')
+    else:  # kind == 'solo'
+        cmds.menuItem(
+            parent=_MENU_NAME, label='Back to Ctrl',
+            annotation='Swap back to the main ctrl. The nudge keeps.',
+            command=lambda *_, j=jnt: _run_armature_action(
+                'Back to Ctrl', armature.exit_solo, j),
+        )
+        cmds.menuItem(
+            parent=_MENU_NAME, label='Zero This Nudge',
+            annotation='Snap this joint back onto its ctrl. Children '
+                       'never move either way.',
+            command=lambda *_, j=jnt: _run_armature_action(
+                'Zero This Nudge', armature.reset_solo_handles, [j]),
+        )
+
+
+def _run_armature_action(label: str, fn, arg) -> None:
+    """Same failure contract as _dispatch: warn + traceback, never a
+    silent swallow, never an unhandled exception out of a menu item."""
+    try:
+        fn(arg)
+    except Exception as e:
+        cmds.warning(f'{label} failed: {e}')
+        import traceback
+        traceback.print_exc()
 
 
 def _find_owning_component(ctrl: str) -> str:

@@ -511,6 +511,13 @@ class FSWindow(QtWidgets.QDialog):
         bar.build_engine_ik_requested.connect(
             self._on_build_engine_ik_requested)
         bar.aim_joints_requested.connect(self._on_aim_joints_requested)
+        bar.aim_all_at_child_requested.connect(
+            self._on_aim_all_at_child_requested)
+        bar.straighten_mid_requested.connect(
+            self._on_straighten_mid_requested)
+        bar.solo_visibility_toggle_requested.connect(
+            self._on_solo_visibility_toggle_requested)
+        bar.solo_reset_requested.connect(self._on_solo_reset_requested)
         bar.aimers_mirror_selected_requested.connect(
             self._on_aimers_mirror_selected_requested)
         bar.aimers_rebuild_all_requested.connect(
@@ -917,6 +924,8 @@ class FSWindow(QtWidgets.QDialog):
         """Aimers panel — Rebuild All Aimers: recreate every aimer with
         its state preserved (fixes stale child enums after topology
         edits), then rebuild the Armature so edges re-derive."""
+        owns_card = card_guard.start('Rebuilding aimers',
+                                     'Recreating aimers...', busy=True)
         try:
             from maya_tools.rigging.joint_orient import (
                 joint_orient_app as joa,
@@ -929,12 +938,17 @@ class FSWindow(QtWidgets.QDialog):
                         joa.rebuild_aimer(j)
                         count += 1
                 armature.build_armature()
-            self.logger.info(
-                f'Rebuilt {count} aimer(s), state preserved; Armature '
-                f'rebuilt.')
-            self.refresh_all()
         except Exception as e:
+            if owns_card:
+                card_guard.fail('Rebuild All Aimers failed. See the log.')
             self._handle_error(e, brief='Rebuild All Aimers failed')
+            return
+        if owns_card:
+            card_guard.finish(f'{count} aimer(s) rebuilt')
+        self.logger.info(
+            f'Rebuilt {count} aimer(s), state preserved; Armature '
+            f'rebuilt.')
+        self.refresh_all()
 
     def _on_aimers_reset_all_requested(self) -> None:
         """Aimers panel — Reset All Aimers: delete every aimer and
@@ -953,6 +967,9 @@ class FSWindow(QtWidgets.QDialog):
         )
         if reply != QtWidgets.QMessageBox.StandardButton.Yes:
             return
+        owns_card = card_guard.start('Resetting aimers',
+                                     'Re-seeding from detection...',
+                                     busy=True)
         try:
             from maya_tools.rigging.joint_orient import (
                 joint_orient_app as joa,
@@ -961,11 +978,16 @@ class FSWindow(QtWidgets.QDialog):
             with joa.undo_chunk('ResetAllAimers'):
                 joa.delete_all_aimers()
                 armature.build_armature()
-            self.logger.info('All aimers reset — re-seeded from '
-                             'geometric detection.')
-            self.refresh_all()
         except Exception as e:
+            if owns_card:
+                card_guard.fail('Reset All Aimers failed. See the log.')
             self._handle_error(e, brief='Reset All Aimers failed')
+            return
+        if owns_card:
+            card_guard.finish('Aimers reset')
+        self.logger.info('All aimers reset — re-seeded from '
+                         'geometric detection.')
+        self.refresh_all()
 
     def _on_aimers_visibility_toggle_requested(self) -> None:
         """Aimers panel — Show/Hide: flip the _aimers display layer."""
@@ -977,6 +999,200 @@ class FSWindow(QtWidgets.QDialog):
         vis = cmds.getAttr(f'{layer}.visibility')
         cmds.setAttr(f'{layer}.visibility', not vis)
         self.logger.info(f'Aimers {"hidden" if vis else "shown"}.')
+
+    # ─── Kris requests, 2026-07-21 ───────────────────────────────────────────
+
+    def _log_reasons(self, reasons: list, cap: int = 40) -> None:
+        """Spill an audit trail into the log without flooding it."""
+        for line in reasons[:cap]:
+            self.logger.info(f'  {line}')
+        if len(reasons) > cap:
+            self.logger.info(f'  ... and {len(reasons) - cap} more.')
+
+    def _on_aim_all_at_child_requested(self) -> None:
+        """Aimers panel — Aim All at Child: fabricate aim targets from
+        the hierarchy.
+
+        The counterpart to the conservative seeder, which only assigns a
+        target when a joint ALREADY aims at a child within 0.75 degrees.
+        On an imported skeleton nothing matches, so every aimer sits on
+        Local and the bake is a no-op — this is the fix for that.
+
+        Deliberately does NOT re-orient the joints or rebuild: same
+        grammar as Mirror Selected Aimers, so the rigger can eyeball the
+        aimers first and then commit with Aim Joints at Aimers.
+        """
+        # Short on purpose (Adrian, 2026-07-21). The long-form warning
+        # was moved to the menu tooltip and the post-run log: the log
+        # NAMES every authored state replaced, which is more useful
+        # after the fact than a wall of text before it.
+        reply = QtWidgets.QMessageBox.question(
+            self, 'Aim All at Child',
+            'Aim every aimer at its child?',
+            QtWidgets.QMessageBox.StandardButton.Yes |
+                QtWidgets.QMessageBox.StandardButton.Cancel,
+            QtWidgets.QMessageBox.StandardButton.Cancel,
+        )
+        if reply != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+        owns_card = card_guard.start('Aiming at children',
+                                     'Walking the hierarchy...', busy=True)
+        try:
+            from maya_tools.rigging.joint_orient import (
+                joint_orient_app as joa,
+            )
+            result = joa.aim_all_at_child()
+        except Exception as e:
+            if owns_card:
+                card_guard.fail('Aim All at Child failed. See the log.')
+            self._handle_error(e, brief='Aim All at Child failed')
+            return
+        if owns_card:
+            card_guard.finish(f"{result['aimed']} aimer(s) aimed")
+        try:
+            self.logger.success(
+                f"Aim All at Child: {result['aimed']} aimed, "
+                f"{result['skipped']} skipped. Run Aim Joints at Aimers "
+                f"to bake it in.")
+            self._log_reasons(result['reasons'])
+            self.refresh_all()
+        except Exception as e:
+            self._handle_error(e, brief='Aim All at Child failed')
+
+    def _on_straighten_mid_requested(self) -> None:
+        """Skeleton panel — Straighten Mid Joint: flatten a knee/elbow on
+        one axis, keeping its deliberate bend on the other two.
+
+        Writes the CTRL when a live Armature owns the joint — joints are
+        driven during the edit stage, so a direct joint write gets
+        stomped on the next evaluation.
+        """
+        owns_card = card_guard.start('Straightening', 'Solving...',
+                                     busy=True)
+        try:
+            from maya_tools.rigging.fabricator import planar_align, armature
+            r = planar_align.align_mid_joint()
+            dev = r['deviations']
+            self.logger.success(
+                f"Straightened {r['mid']} on {r['axis'].upper()} "
+                f"(moved the {r['drove']}).")
+            self.logger.info(
+                f"  deviations x={dev['x']:.4f} y={dev['y']:.4f} "
+                f"z={dev['z']:.4f}; bend on the other two axes kept.")
+            # Commit, same rule as putting the cages away (Adrian,
+            # 2026-07-21). The straighten lands in a solo handle, so
+            # without this the correction is real but invisible: the
+            # joint sits off its ctrl with nothing on screen saying why.
+            # No-op when there is nothing pending (a plain skeleton with
+            # no Armature never gets here with a nudge). Commits every
+            # outstanding nudge, not just this one — the rebuild is
+            # global by nature — so the count is logged rather than
+            # implied.
+            committed = armature.commit_solo_nudges()
+            if committed:
+                extra = (f' (plus {committed - 1} earlier nudge(s))'
+                         if committed > 1 else '')
+                self.logger.info(
+                    f'  committed to placement{extra}; Armature rebuilt, '
+                    f'handles re-zeroed.')
+                self.refresh_all()
+        except Exception as e:
+            if owns_card:
+                card_guard.fail('Straighten failed. See the log.')
+            self._handle_error(e, brief='Straighten Mid Joint failed')
+            return
+        if owns_card:
+            card_guard.finish(f"{r['mid']} straightened")
+
+    def _on_solo_visibility_toggle_requested(self) -> None:
+        """Skeleton panel — Show/Hide Solo Handles: flip the _solo layer.
+
+        A solo handle moves ONLY its own joint; the main ctrl still
+        drags the whole subtree. Visibility is display-only, so the
+        drive network keeps evaluating while they are hidden.
+        """
+        # Bound before the try: the card is opened partway down, so an
+        # exception raised above it would otherwise hit the handler's
+        # own `if owns_card` with the name unbound.
+        owns_card = False
+        try:
+            from maya_tools.rigging.fabricator import armature
+            if not armature.solo_handles():
+                self.logger.warning(
+                    'No solo handles yet — build the Armature first.')
+                return
+            hiding = armature.solo_handles_visible()
+            committed = 0
+            # Card only when there is a rebuild to wait on — a plain
+            # show/hide is instant and a card would just flash.
+            owns_card = (card_guard.start('Committing nudges',
+                                          'Rebuilding Armature...',
+                                          busy=True)
+                         if hiding and armature.pending_solo_nudges()
+                         else False)
+            if hiding:
+                # Commit BEFORE hiding (Adrian, 2026-07-21): putting the
+                # cages away is the natural "I'm done nudging" moment,
+                # and a nonzero handle behind a hidden cage is invisible
+                # state — the joint sits off its ctrl with nothing on
+                # screen explaining it. Committing first also means a
+                # failed rebuild leaves everything visible and unchanged
+                # rather than half-applied. No nudges = no rebuild, so
+                # a look-and-hide stays instant.
+                committed = armature.commit_solo_nudges()
+            shown = armature.toggle_solo_handles()
+        except Exception as e:
+            if owns_card:
+                card_guard.fail('Commit failed. See the log.')
+            self._handle_error(e, brief='Show / Hide Solo Handles failed')
+            return
+        if owns_card:
+            card_guard.finish(f'{committed} nudge(s) committed')
+        if committed:
+            self.logger.success(
+                f'Solo handles hidden — {committed} nudge(s) '
+                f'committed, Armature rebuilt, handles re-zeroed.')
+            self.refresh_all()
+        else:
+            self.logger.info(
+                f'Solo handles {"shown" if shown else "hidden"}.')
+
+    def _on_solo_reset_requested(self) -> None:
+        """Skeleton panel — Reset Solo Handles: zero the nudges.
+
+        Selection-scoped when the rigger has joints, ctrls or handles
+        selected; whole-Armature otherwise. Nothing below a reset joint
+        moves, exactly as when the nudge was made.
+        """
+        try:
+            from maya_tools.rigging.fabricator import armature
+            joints = self._selected_armature_joints()
+            count = armature.reset_solo_handles(joints or None)
+            scope = f'{len(joints)} selected' if joints else 'all'
+            self.logger.success(
+                f'Reset {count} solo handle(s) ({scope}).')
+        except Exception as e:
+            self._handle_error(e, brief='Reset Solo Handles failed')
+
+    @staticmethod
+    def _selected_armature_joints() -> list:
+        """Selected nodes resolved back to joints — accepts the joint
+        itself, its `_amt_CTL`, or its `_amtSolo` handle, since all
+        three are things a rigger might have clicked in the viewport."""
+        out = []
+        for node in cmds.ls(selection=True, long=True) or []:
+            short = node.split('|')[-1]
+            if cmds.objExists(node) and cmds.nodeType(node) == 'joint':
+                out.append(short)
+                continue
+            for suffix in ('_amt_CTL', '_amtSolo'):
+                if short.endswith(suffix):
+                    candidate = short[:-len(suffix)]
+                    if (cmds.objExists(candidate)
+                            and cmds.nodeType(candidate) == 'joint'):
+                        out.append(candidate)
+                    break
+        return out
 
     def _run_mirror_branch(self, include_modules: bool, label: str,
                            root: str = None):
@@ -1233,9 +1449,19 @@ class FSWindow(QtWidgets.QDialog):
         back in their stored state. Skins are defensively detached
         inside build_armature before the bake.
         """
+        owns_card = card_guard.start('Aiming joints',
+                                     'Baking orientation...', busy=True)
         try:
             from maya_tools.rigging.fabricator import armature
             result = armature.build_armature()
+        except Exception as e:
+            if owns_card:
+                card_guard.fail('Aim Joints failed. See the log.')
+            self._handle_error(e, brief='Aim Joints failed')
+            return
+        if owns_card:
+            card_guard.finish('Joints aimed')
+        try:
             self.logger.info(
                 f"Aim Joints: orientation baked, Armature rebuilt "
                 f"({result['ik_edges']} aim edges, "

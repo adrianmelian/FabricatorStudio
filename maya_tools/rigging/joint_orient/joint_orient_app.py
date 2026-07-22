@@ -1125,3 +1125,338 @@ def orient_all_aimers(force: bool = False) -> list:
         delete_all_aimers()
 
     return ordered
+
+
+# ─────────────────────────────────────────────
+# Private helpers — aim all at child
+# ─────────────────────────────────────────────
+
+def _bone_length(jnt: str, child: str) -> float:
+    """World-space distance from jnt to child — the same co-location
+    guard `_detect_aim_child_signed` uses ('no direction to aim
+    along')."""
+    jp = om.MVector(*cmds.xform(jnt, q=True, ws=True, t=True))
+    cp = om.MVector(*cmds.xform(child, q=True, ws=True, t=True))
+    return (cp - jp).length()
+
+
+def _max_subtree_depth(jnt: str) -> int:
+    """Depth of jnt's deepest descendant chain (0 = leaf). A plain
+    recursive walk over `_get_direct_children` — it answers a
+    different question than `_collect_hierarchy`'s flat
+    parents-before-children list (how deep a branch goes, not the
+    visiting order), so this is not a duplicate of that traversal."""
+    kids = _get_direct_children(jnt)
+    if not kids:
+        return 0
+    return 1 + max(_max_subtree_depth(k) for k in kids)
+
+
+def _is_default_aimer_state(state: dict) -> bool:
+    """True when state matches a freshly-created aimer (Local target,
+    zero offset). Anything else — a child/World/Parent target, or a
+    twist offset authored on Local — is state a caller could lose, so
+    `aim_all_at_child` must confess to replacing it."""
+    if state is None:
+        return True
+    if state['aim_target'] != 'Local':
+        return False
+    return all(abs(v) < 1e-6 for v in state['aim_offset'])
+
+
+def _log_if_overwritten(jnt: str, pre_state: dict, new_desc: str,
+                        reasons: list) -> None:
+    """Append a confession line to reasons when pre_state was
+    non-default — every joint whose authored state this pass replaces
+    must be named, in the spirit of Reset All Aimers' confirm warning
+    ('Authored aim targets and offsets ... are LOST')."""
+    if _is_default_aimer_state(pre_state):
+        return
+    reasons.append(
+        f'{jnt}: replaced authored state (was target='
+        f'{pre_state["aim_target"]!r}, offset='
+        f'{[round(v, 2) for v in pre_state["aim_offset"]]}) — {new_desc}')
+
+
+def _reachable_set(roots) -> set:
+    """Union of `_collect_hierarchy(r)` for every root that still
+    exists — every joint reachable from any of `roots`, regardless of
+    whether it has an aimer."""
+    members: set = set()
+    for r in roots:
+        if cmds.objExists(r):
+            members.update(_collect_hierarchy(r))
+    return members
+
+
+def _true_roots(members: set) -> list:
+    """The topmost joints within `members`: those whose parent joint
+    (if any) is NOT itself in `members`. Walking `_collect_hierarchy`
+    from just these reaches every member exactly once, however the
+    caller's input roots overlapped or were ordered."""
+    roots = []
+    for j in members:
+        if not cmds.objExists(j):
+            continue
+        parents = cmds.listRelatives(j, parent=True, type='joint') or []
+        parent = parents[0] if parents else None
+        if parent not in members:
+            roots.append(j)
+    return roots
+
+
+def _ordered_from_set(members: set) -> list:
+    """Parents-before-children walk covering exactly `members`. Reuses
+    `_collect_hierarchy` from each true root and filters to membership
+    — no second traversal algorithm, just orchestration over the
+    existing BFS."""
+    ordered = []
+    seen = set()
+    for r in _true_roots(members):
+        for j in _collect_hierarchy(r):
+            if j in members and j not in seen:
+                seen.add(j)
+                ordered.append(j)
+    return ordered
+
+
+def _pick_chain_continuation(candidates: list,
+                             length_tol: float = 1e-4) -> tuple:
+    """Pick the chain-continuation child among a joint's multiple
+    children, from plain data — no Maya calls, so the tie-break rule is
+    unit-testable without a live scene.
+
+    Args:
+      candidates: [(child_name, depth, length), ...] — depth is the
+        child's own max descendant-subtree depth (0 = leaf), length is
+        the joint-to-child bone distance.
+      length_tol: absolute tolerance for the longest-bone tiebreak.
+
+    Selection: the deepest subtree wins outright (a UE-style
+    `upperarm` picks `lowerarm` over the leaf `upperarm_twist_01`). A
+    tie on depth falls to the longest bone. A genuine tie on BOTH
+    depth and length has no principled winner.
+
+    Returns:
+        (winner_child, losers) — losers is every OTHER candidate
+        tuple, or (None, candidates) when there is no unique winner.
+    """
+    if not candidates:
+        return None, []
+    max_depth = max(depth for _, depth, _ in candidates)
+    deepest = [c for c in candidates if c[1] == max_depth]
+    if len(deepest) == 1:
+        winner = deepest[0]
+    else:
+        max_len = max(length for _, _, length in deepest)
+        longest = [c for c in deepest if abs(c[2] - max_len) <= length_tol]
+        if len(longest) != 1:
+            return None, candidates
+        winner = longest[0]
+    losers = [c for c in candidates if c != winner]
+    return winner[0], losers
+
+
+def chain_continuation_child(jnt: str) -> str:
+    """The child that continues `jnt`'s chain, or '' when there is no
+    unique answer (no children, or a genuine tie).
+
+    The public face of the same rule `aim_all_at_child` uses — deepest
+    descendant subtree wins, ties broken by longest bone — so a caller
+    outside this module (planar_align's single-selection form) resolves
+    "which child is the chain?" identically instead of inventing a
+    second heuristic. On a UE-style leg the knee's children are the
+    ankle AND one or more calf twists; the ankle wins on subtree depth.
+    """
+    children = _get_direct_children(jnt)
+    if not children:
+        return ''
+    if len(children) == 1:
+        return children[0]
+    candidates = [(c, _max_subtree_depth(c), _bone_length(jnt, c))
+                  for c in children]
+    winner, _losers = _pick_chain_continuation(candidates)
+    return winner or ''
+
+
+def _apply_and_log(jnt: str, child: str, pre_state: dict,
+                   reasons: list) -> bool:
+    """Apply `child` as jnt's aim target, and confess if pre_state was
+    non-default. Returns False (and logs) instead of claiming success
+    when the aimer's enum doesn't include `child` — a stale enum from
+    a child list that changed since the aimer was last built, which
+    `apply_aimer_state` reports rather than guesses at."""
+    ok = apply_aimer_state(jnt, aim_target=child)
+    if not ok:
+        reasons.append(
+            f'{jnt}: skipped — aimer has no {child!r} target slot '
+            f'(child list changed since the aimer was built; '
+            f'rebuild_aimer first)')
+        return False
+    _log_if_overwritten(jnt, pre_state, f'now aimed at {child!r}', reasons)
+    return True
+
+
+# ─────────────────────────────────────────────
+# Public API — aim all at child (fabricate mode)
+# ─────────────────────────────────────────────
+
+def aim_all_at_child(joints: list = None) -> dict:
+    """Fabricate aim targets from hierarchy — the explicit counterpart
+    to `seed_aimer_from_detection`'s conservative geometry-match-only
+    seeding. Where the seeder only assigns a target when the joint
+    ALREADY aims at a child (never fabricates), this OVERWRITES every
+    processed joint's aimer with a target derived purely from the
+    joint hierarchy — the fix for a hand-built or imported skeleton
+    where nothing ever matched and every aimer sat at Local.
+
+    Processes parents before children (BFS via `_collect_hierarchy`,
+    reused rather than re-walked) so an end joint can read its
+    parent's FRESH world rotation.
+
+    Per joint (children via `_get_direct_children`, joints only):
+
+      1. Exactly one child -> aim at it. Skipped when the child is
+         co-located (bone length < 1e-5 — the same guard
+         `_detect_aim_child_signed` uses; there is no direction to aim
+         along).
+
+      2. Multiple children -> `_pick_chain_continuation` picks the
+         chain continuation: deepest descendant subtree wins, ties
+         broken by longest bone, a genuine tie on both is skipped.
+         Every multi-child decision is logged in `reasons` (winner +
+         losers) whether or not it changes anything — the pick is
+         auditable, not magic. Rationale: a UE-style `upperarm` has
+         children `lowerarm` and `upperarm_twist_01`; blindly skipping
+         every multi-child joint would skip every joint that matters.
+
+      3. No children (end joint) -> copy the PARENT's aimer world
+         rotation verbatim (`apply_aimer_state(..., world_rotation=…)`
+         — the mechanism added 2026-07-14 for the twist lifecycle bug;
+         world_rotation wins over aim_offset). This copies the full
+         frame, aim AND roll, which is what a twist/end joint riding
+         alongside the main chain wants. Deliberately NOT
+         `point_aimer_at_parent_flipped`: Parent+180 lands the aim
+         direction but rolls the up-axis 180 off the authored frame —
+         a known, recorded trap. Skipped when the parent has no aimer,
+         or the joint has no parent joint at all.
+
+    joints=None processes every joint that currently HAS an aimer
+    (`get_all_aimer_joints`). A given list processes exactly those
+    joints plus every descendant (aimer or not — a joint with no
+    aimer is skipped and logged when reached, not silently ignored).
+
+    This OVERWRITES authored aimer state — deliberate Local/World
+    targets, twist offsets, whatever was there. That is the point, but
+    every joint whose PRE-existing state was non-default (anything but
+    a fresh Local/zero-offset aimer) is named in `reasons` so a caller
+    can put it in a confirm dialog, in the spirit of Reset All Aimers'
+    warning ('Authored aim targets and offsets ... are LOST').
+
+    Args:
+      joints: joints to process plus their descendants, or None for
+        every joint with an aimer in the scene.
+
+    Returns:
+        {'aimed': int, 'skipped': int, 'reasons': list[str]} — mirrors
+        the shape `mirror_aimers` returns. `reasons` mixes three kinds
+        of line: why a joint was skipped, the audit trail for every
+        multi-child pick, and a confession for every non-default state
+        this pass replaced.
+    """
+    if joints is None:
+        members = set(get_all_aimer_joints())
+        if not members:
+            cmds.warning('aim_all_at_child: no aimers in scene.')
+            return {'aimed': 0, 'skipped': 0, 'reasons': []}
+    else:
+        members = _reachable_set(joints)
+        if not members:
+            cmds.warning(
+                'aim_all_at_child: none of the given joints exist.')
+            return {'aimed': 0, 'skipped': 0, 'reasons': []}
+
+    ordered = _ordered_from_set(members)
+
+    aimed = 0
+    skipped = 0
+    reasons: list = []
+
+    with undo_chunk('AimAllAtChild'):
+        for jnt in ordered:
+            if not cmds.objExists(jnt):
+                skipped += 1
+                reasons.append(f'{jnt}: skipped — joint no longer exists')
+                continue
+            if not aimer_exists(jnt):
+                skipped += 1
+                reasons.append(
+                    f'{jnt}: skipped — no aimer (create one first)')
+                continue
+
+            pre_state = get_aimer_state(jnt)
+            children = _get_direct_children(jnt)
+
+            if len(children) == 1:
+                child = children[0]
+                if _bone_length(jnt, child) < 1e-5:
+                    skipped += 1
+                    reasons.append(
+                        f'{jnt}: skipped — child {child!r} is co-located '
+                        f'(no direction to aim along)')
+                    continue
+                if _apply_and_log(jnt, child, pre_state, reasons):
+                    aimed += 1
+                else:
+                    skipped += 1
+
+            elif len(children) > 1:
+                candidates = [(c, _max_subtree_depth(c), _bone_length(jnt, c))
+                             for c in children]
+                winner, losers = _pick_chain_continuation(candidates)
+                if winner is None:
+                    skipped += 1
+                    reasons.append(
+                        f'{jnt}: skipped — multi-child tie among '
+                        f'{[c for c, _, _ in candidates]} (equal subtree '
+                        f'depth AND bone length, no unique continuation)')
+                    continue
+                win_depth, win_len = next(
+                    (d, l) for c, d, l in candidates if c == winner)
+                reasons.append(
+                    f'{jnt}: multi-child pick — winner {winner!r} '
+                    f'(depth={win_depth}, length={win_len:.3f}) over '
+                    f'losers {[(c, d, round(l, 3)) for c, d, l in losers]}')
+                if win_len < 1e-5:
+                    skipped += 1
+                    reasons.append(
+                        f'{jnt}: skipped — winning child {winner!r} is '
+                        f'co-located (no direction to aim along)')
+                    continue
+                if _apply_and_log(jnt, winner, pre_state, reasons):
+                    aimed += 1
+                else:
+                    skipped += 1
+
+            else:  # end joint — copy the parent's frame
+                parents = cmds.listRelatives(
+                    jnt, parent=True, type='joint') or []
+                if not parents:
+                    skipped += 1
+                    reasons.append(f'{jnt}: skipped — no parent joint')
+                    continue
+                parent = parents[0]
+                if not aimer_exists(parent):
+                    skipped += 1
+                    reasons.append(
+                        f'{jnt}: skipped — parent {parent!r} has no aimer')
+                    continue
+                parent_world_rot = cmds.xform(
+                    aimer_name(parent), q=True, ws=True, rotation=True)
+                _log_if_overwritten(
+                    jnt, pre_state, f'copied parent {parent!r} frame',
+                    reasons)
+                apply_aimer_state(jnt, world_rotation=parent_world_rot)
+                aimed += 1
+
+    return {'aimed': aimed, 'skipped': skipped, 'reasons': reasons}

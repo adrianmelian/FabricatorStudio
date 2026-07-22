@@ -69,18 +69,89 @@ so the ball reads as a clean silhouette. It is also the cheapest
 material in VP2 (no lighting evaluation), and it is SHARED — one per
 color, four for the whole Armature, not one per ctrl.
 
+SOLO HANDLES (Adrian, 2026-07-21). The ctrl tree mirroring the joint
+tree is the whole point of the Armature — drag a parent and the subtree
+comes with it — but it costs the OTHER gesture a rigger wants just as
+often: nudge ONE joint and leave everything below exactly where it is
+(Maya's native Insert-key behavior on a plain joint). Both, without a
+mode switch, without a scriptJob:
+
+  * Every ctrl carries a small SOLO HANDLE, `{jnt}_amtSolo`, a plasma
+    sphere cage parented UNDER the main `{jnt}_amt_CTL` and zeroed.
+    A NURBS-curve sphere, deliberately a different SHAPE FAMILY from
+    the main ctrl's poly orb (Adrian, 2026-07-21) — at a glance you can
+    tell which one you grabbed, which matters because the two are
+    coincident by construction.
+  * The JOINT'S DRIVE NETWORK READS THE SOLO HANDLE, never the main
+    ctrl: the pointConstraint targets it on a translate-only edge, and
+    on a pure-aim edge BOTH the ikHandle's parent AND the
+    distanceBetween's second matrix are the solo handle. Repointing
+    only one of those two would make the joint snap back onto the main
+    ctrl and the handle would do nothing — the stretch and the aim have
+    to agree on where "the ctrl" is.
+  * CHILD ctrls stay parented under the MAIN ctrl, exactly as before.
+
+Net effect, which falls straight out of that split: moving the main
+ctrl moves the joint and the whole subtree (unchanged behavior — the
+solo rides along rigidly, so its world offset is carried); moving a
+solo handle moves ONLY its joint, because every descendant's own solo
+handle sits under an unmoved main ctrl and its own pointConstraint /
+SC-IK+stretch pair pulls it back to precisely where it already was. The
+parent re-aims at the moved handle, and the moved joint re-aims at its
+own child's unmoved handle — orientations update, positions do not.
+
+The handle is zeroed AND hidden on create — hidden at the SHAPE level
+(shape.visibility on the cage curve), not via a display layer and not
+via the transform. Both alternatives are measured dead ends
+(2026-07-21): a hidden display layer's overrideVisibility beats a
+member's own shape visibility, so a `_solo` layer would make the
+per-ctrl swap below impossible; and hiding a TRANSFORM hides its whole
+DAG subtree, which is exactly the trap the swap has to dodge in the
+other direction (the solo handle is a child of the ctrl it replaces).
+So an untouched Armature is byte-for-byte what it was before this
+existed: a zeroed handle's world matrix is its ctrl's world matrix,
+multiplied by identity. Solo offsets need no persistence — a rebuild
+re-derives every ctrl from its joint's CURRENT world position, so the
+nudge is simply baked into the ctrl tree and the handles come back at
+zero. The only state a rebuild carries over is shown/hidden.
+
+Two ways in (both shape-level, both selection-friendly):
+  * The bulk toggle (toolbar / set_solo_handles_visible): every cage
+    shown alongside its ctrl.
+  * The per-joint SWAP (enter_solo / exit_solo, driven from the
+    Ctrl+Alt+RMB marking menu): the ctrl's own shapes hide and the
+    cage shows, so there is exactly ONE clickable thing where the
+    joint is and no picker fight between two coincident controls.
+    exit_solo puts it back. Hiding everything (bulk toggle off) also
+    exits every active swap, so a joint can never end up with no
+    visible manipulator at all.
+
 Node naming (all cleanup is name+type driven):
   fab_armature_grp          top group (ctrl tree + ik handles)
   {jnt}_amt_CTL               ctrl
-  {jnt}_amtIkh / {jnt}_amtEff ik handle / effector
-  {jnt}_amtDist               distanceBetween (stretch)
+  {jnt}_amtSolo               solo handle (child of the ctrl; the
+                              node the joint's drive network reads)
+  {jnt}_amtIkh / {jnt}_amtEff ik handle (under the SOLO) / effector
+  {jnt}_amtDist               distanceBetween (parent jnt → SOLO)
   {jnt}_amtStretch            multDoubleLinear (stretch sign)
-  {jnt}_amt_ptcon             pointConstraint (translate-only edges)
-  {jnt}_amtLine               template guide line parent→child ctrl
-  {ctrl}_amtLinePos           pointMatrixMult (line CV world driver)
+  {jnt}_amt_ptcon             pointConstraint (SOLO → jnt)
+  {jnt}_amtLine               template guide line parent→child
+  {ctrl}_amtLinePos           pointMatrixMult (line CV world driver;
+                              named for the ctrl, FED by its solo)
+
+Which handle each node follows, in one line: the ctrl tree, the guide
+lines' NAMES and the display layers follow the MAIN ctrl; everything
+that decides where a joint physically is — ptcon, ikHandle parent,
+distanceBetween, and therefore the guide lines' actual POSITIONS —
+follows the SOLO handle, because that is where the joint actually
+lands and a guide line that pointed at the main ctrl would be drawing
+a bone that isn't there.
 
 Ctrl colors: left blue / right red (side_tokens); center keeps the
-kind color (yellow aiming / cyan placed).
+kind color (yellow aiming / cyan placed). The solo handle opts out of
+that scheme entirely and wears brand plasma (#7CFFB2, the "go/action"
+accent) as an exact RGB override — it is a different KIND of object,
+not a differently-sided one, and must read that way at a glance.
 
 Follow rules (SPEC 2026-07-09 Limbs + Follower Joints §3.1, Task 1.2)
 are the POSITIONAL SIBLING of the aimers. A joint carrying a follow
@@ -179,6 +250,43 @@ _ROOT_CTRL_SHAPE = 'circle_four_arrow'
 _ROOT_CTRL_RADIUS_FACTOR = 4.0
 
 _SHADER_PREFIX = 'fab_amtCtl'
+
+# ── The SOLO handle (Adrian, 2026-07-21) ─────────────────────────────
+# See the module docstring's SOLO HANDLES section for the architecture.
+_CTRL_SUFFIX = '_amt_CTL'     # the one place this module spells it out
+_SOLO_SUFFIX = '_amtSolo'
+_SOLO_LAYER  = '_solo'        # LEGACY display layer (first iteration's
+                              # visibility toggle). RETIRED 2026-07-21:
+                              # a hidden layer's overrideVisibility
+                              # beats a member's own shape visibility
+                              # (measured), which would deadlock the
+                              # per-ctrl marking-menu swap below. Kept
+                              # only so build_armature can delete it on
+                              # sight from scenes built before the swap.
+
+# A NURBS-curve sphere cage, not another orb (Adrian, 2026-07-21 —
+# traded up from the first iteration's diamond). Two reasons: it is a
+# nurbsCurve (the ONLY other shape type Maya gives alwaysDrawOnTop to,
+# so ctrl_shapes() sweeps it and reapply_xray() re-arms it on scene
+# open with zero extra wiring — same free ride the root's
+# circle-four-arrow takes); and being an open wireframe of a different
+# SHAPE FAMILY from the solid poly orb it surrounds, you can tell which
+# one you grabbed from any camera angle — which matters because the two
+# are coincident by construction.
+_SOLO_SHAPE = 'sphere'
+
+# Deliberately LARGER than _BALL_RADIUS_FACTOR (0.4): the cage has to
+# poke out past the orb's silhouette or there is nothing to click — the
+# orb is opaque and draws on top. Click the orb, move the subtree; click
+# the cage around it, move the joint alone.
+_SOLO_RADIUS_FACTOR = 0.95
+
+# Brand plasma #7CFFB2 — FabricatorStudio's go/action accent. Set as an
+# exact RGB override (overrideRGBColors), not a palette index: Maya's
+# 32-color index table has no entry within reach of the brand color, and
+# the whole job of this handle is to be unmistakable next to the
+# blue/red/yellow/cyan orbs.
+_SOLO_RGB = (0.486, 1.000, 0.698)
 
 # Maya's override-color palette is a UI resource: cmds.colorIndex() is
 # authoritative in the GUI (it honors a customized palette) but returns
@@ -284,9 +392,16 @@ def _dress_ball(ctrl: str, color: int) -> None:
 
 def ctrl_shapes() -> list:
     """Every Armature shape that wants the x-ray, or [] when there is no
-    Armature: the ctrl BALLS (mesh) and the guide LINES (nurbsCurve).
-    Both are shape types Maya gives alwaysDrawOnTop to; a nurbsSurface or
-    a locator could not be included here even if we wanted it."""
+    Armature: the ctrl BALLS (mesh) and every curve under the group — the
+    guide LINES, the root's circle-four-arrow, and the per-ctrl SOLO
+    cages. Both are shape types Maya gives alwaysDrawOnTop to; a
+    nurbsSurface or a locator could not be included here even if we
+    wanted it.
+
+    This being a blanket type sweep rather than a list of known names is
+    why every curve-shaped thing added to the Armature since (the root
+    ctrl 2026-07-18, the solo handles 2026-07-21) got scene-open x-ray
+    re-arming for free. Keep it that way."""
     if not cmds.objExists(_GRP):
         return []
     return (cmds.listRelatives(_GRP, allDescendents=True, type='mesh',
@@ -436,8 +551,40 @@ def ctrl_for_joint(joint: str) -> str | None:
     """
     if not joint:
         return None
-    ctrl = f'{joint}_amt_CTL'
+    ctrl = f'{joint}{_CTRL_SUFFIX}'
     return ctrl if cmds.objExists(ctrl) else None
+
+
+def solo_handle_for_joint(joint: str) -> str | None:
+    """The live SOLO handle for `joint`, or None.
+
+    Companion resolver to ctrl_for_joint: same contract, same reasons
+    for returning None (no Armature, or a follow-ruled joint that never
+    got a ctrl to hang a handle under). Nudging this moves `joint` and
+    nothing below it — see the module docstring's SOLO HANDLES section.
+    """
+    if not joint:
+        return None
+    solo = f'{joint}{_SOLO_SUFFIX}'
+    return solo if cmds.objExists(solo) else None
+
+
+def _drive_handle(ctrl: str) -> str:
+    """The node a joint's drive network must read for `ctrl`: its solo
+    handle when one exists, else the ctrl itself.
+
+    Every consumer of a ctrl's transform goes through here rather than
+    naming the solo directly, for one reason: `_wire_aim_edge` is called
+    both by a fresh build (solo already made) and by
+    `_follow_retrofit_reaim_parent` long afterwards, and the two must
+    produce an indistinguishable edge. The ctrl fallback also means an
+    Armature standing in a scene built before solo handles existed keeps
+    wiring correctly instead of raising on a node that isn't there."""
+    if ctrl.endswith(_CTRL_SUFFIX):
+        solo = f'{ctrl[:-len(_CTRL_SUFFIX)]}{_SOLO_SUFFIX}'
+        if cmds.objExists(solo):
+            return solo
+    return ctrl
 
 
 def measure_live_ctrl_scale() -> float | None:
@@ -524,7 +671,18 @@ def _max_shape_extent(node: str) -> float:
     standing between the skeletal exporter's break/export/rebuild round
     trip and silently resizing every one of the user's ctrls back to 1.0.
     A CV-only reader would have returned 0.0 for every ball and taken the
-    whole recovery down with it, silently."""
+    whole recovery down with it, silently.
+
+    MEASURED (2026-07-21, when the solo handle became a CURVE parented
+    under every ctrl): `node.cv[*]` and `node.vtx[*]` resolve against the
+    node's OWN shapes only — they do not descend into a child transform's
+    shapes. Verified directly: a curve parented under a polySphere leaves
+    `ls(sphere.cv[*])` empty. That is the whole reason the solo cage can
+    live under the ctrl without poisoning this ratio; had it descended,
+    every ctrl would have measured the (larger) cage instead of the orb
+    and the exporter would have silently rescaled the user's ctrls on its
+    next round trip. If a future Maya changes that, this must switch to
+    an explicit listRelatives(shapes=True) walk."""
     best = 0.0
     points = (cmds.ls(f'{node}.vtx[*]', flatten=True) or []) \
         + (cmds.ls(f'{node}.cv[*]', flatten=True) or [])
@@ -709,7 +867,15 @@ def _connect_line(parent_ctrl: str, child_ctrl: str, name: str,
     The curve transform stays identity under the armature grp (also
     identity), which makes world == local for the CVs. Template
     display: grey, unselectable. One pointMatrixMult per ctrl, shared
-    across its lines via pmm_cache."""
+    across its lines via pmm_cache.
+
+    The pmm is NAMED for the ctrl (the documented `{ctrl}_amtLinePos`)
+    but FED by that ctrl's SOLO handle. The line's job is to tell the
+    truth about where the bone runs, and after a solo nudge the joint is
+    at the handle, not at the ctrl — a line still anchored to the ctrl
+    would draw a bone that does not exist. Naming stays ctrl-derived so
+    the sharing cache key, the cleanup glob and the docstring's naming
+    table are all unchanged."""
     line = cmds.curve(degree=1, point=[(0, 0, 0), (0, 0, 1)],
                       name=name)
     shape = cmds.listRelatives(line, shapes=True)[0]
@@ -727,7 +893,7 @@ def _connect_line(parent_ctrl: str, child_ctrl: str, name: str,
             pmm = cmds.createNode('pointMatrixMult',
                                   name=f'{ctrl}_amtLinePos',
                                   skipSelect=True)
-            cmds.connectAttr(f'{ctrl}.worldMatrix[0]',
+            cmds.connectAttr(f'{_drive_handle(ctrl)}.worldMatrix[0]',
                              f'{pmm}.inMatrix')
             pmm_cache[ctrl] = pmm
         cmds.connectAttr(f'{pmm}.output',
@@ -738,10 +904,21 @@ def _connect_line(parent_ctrl: str, child_ctrl: str, name: str,
 def _wire_aim_edge(parent_jnt: str, child: str, ctrl: str,
                    stretch_channel: str) -> None:
     """Build the SC-IK aim edge parent_jnt -> child: ikHandle(startJoint=
-    parent_jnt, endEffector=child) parented under child's ctrl (so the
-    solver aims parent_jnt at wherever the ctrl sits), plus the stretch
-    network (|parent_jnt -> ctrl| x sign -> child.stretch_channel) that
-    puts child ON the ctrl.
+    parent_jnt, endEffector=child) parented under child's DRIVE HANDLE
+    (so the solver aims parent_jnt at wherever the handle sits), plus the
+    stretch network (|parent_jnt -> drive handle| x sign ->
+    child.stretch_channel) that puts child ON the handle.
+
+    The drive handle is `ctrl`'s solo handle when one exists, else `ctrl`
+    itself (_drive_handle). BOTH consumers move together and that is not
+    a stylistic choice: the ikHandle decides which DIRECTION the parent
+    points and the distanceBetween decides HOW FAR down that direction
+    the child sits. Repoint only the ikHandle and the child lands short
+    of (or past) the handle; repoint only the distance and the parent
+    keeps aiming at the main ctrl while the child slides along the wrong
+    ray. Either way the joint ends up somewhere neither handle is. The
+    two must agree on what "the ctrl" means, so exactly one function
+    resolves it and both reads come from that one call.
 
     Factored out of build_armature's ctrl loop (Task 1.2 follow-up) so
     _follow_retrofit_reaim_parent can build the IDENTICAL edge when a
@@ -754,21 +931,25 @@ def _wire_aim_edge(parent_jnt: str, child: str, ctrl: str,
     _lock_joint_channels; a retrofit rewire must unlock it itself —
     Maya refuses a NEW connection onto a locked attribute even though
     an EXISTING one keeps driving it, see this module's own docstring)."""
+    drive = _drive_handle(ctrl)
     ikh, eff = cmds.ikHandle(
         startJoint=parent_jnt, endEffector=child,
         solver='ikSCsolver', name=f'{child}_amtIkh')
     cmds.rename(eff, f'{child}_amtEff')
-    cmds.parent(ikh, ctrl)
+    # Absolute (world-preserving) parent, as before. A zeroed solo handle
+    # has its ctrl's exact world matrix, so the handle the ikHandle ends
+    # up with is bit-identical to the one it got under the ctrl.
+    cmds.parent(ikh, drive)
     cmds.setAttr(f'{ikh}.visibility', 0)
 
-    # Stretch: |parent → ctrl| × sign → child aim translate. The SC
-    # solver aims the parent at the ctrl; the stretch puts the child
+    # Stretch: |parent → drive handle| × sign → child aim translate. The
+    # SC solver aims the parent at the handle; the stretch puts the child
     # ON it.
     sign = (1.0 if cmds.getAttr(f'{child}.{stretch_channel}') >= 0.0
             else -1.0)
     dist = cmds.createNode('distanceBetween', name=f'{child}_amtDist')
     cmds.connectAttr(f'{parent_jnt}.worldMatrix[0]', f'{dist}.inMatrix1')
-    cmds.connectAttr(f'{ctrl}.worldMatrix[0]', f'{dist}.inMatrix2')
+    cmds.connectAttr(f'{drive}.worldMatrix[0]', f'{dist}.inMatrix2')
     mult = cmds.createNode('multDoubleLinear', name=f'{child}_amtStretch')
     cmds.connectAttr(f'{dist}.distance', f'{mult}.input1')
     cmds.setAttr(f'{mult}.input2', sign)
@@ -847,6 +1028,264 @@ def _make_root_ctrl(jnt: str, kind: int, ctrl_scale: float,
     return ctrl
 
 
+def _make_solo_handle(jnt: str, ctrl: str, ctrl_scale: float,
+                      shown: bool = False) -> str:
+    """The per-ctrl SOLO handle: a plasma sphere cage under `ctrl`,
+    zeroed, hidden, and the node `jnt`'s drive network actually reads.
+
+    Zeroed is load-bearing, and it is exact rather than approximate:
+    build_shape bakes the size into the CVs and leaves the transform at
+    identity, and the parent below is RELATIVE, so the handle's local
+    matrix is a true identity and its world matrix is its ctrl's world
+    matrix unchanged. That is what lets a built-but-untouched Armature
+    land its joints in bit-identical world positions to one built before
+    solo handles existed — an absolute parent would instead have left
+    the cage sitting at the world origin with a compensating translate,
+    which is both wrong and no longer zeroed.
+
+    Hidden at the SHAPE level (`shown=False` sets cage-shape
+    visibility off), NOT via a display layer — a hidden layer's
+    overrideVisibility beats a member's own shape visibility
+    (measured 2026-07-21), which would deadlock enter_solo's per-ctrl
+    swap. The caller (build_armature) passes `shown` from the
+    pre-teardown state, so a limb drop or template load cannot slam
+    the handles back off after the user deliberately turned them on —
+    the same trap fs_app._ensure_joints_display_layer documents for
+    `_Joints`, solved by capture instead of a persistent layer node.
+    Hiding `_armature` still hides these with no extra wiring: the
+    layer hide propagates down the DAG through the ctrl the handle is
+    parented under.
+
+    Rotate is locked alongside scale — unlike the main ctrl, which keeps
+    rotate free for FK-style rough-in, nothing downstream reads this
+    node's orientation (a pointConstraint and a distanceBetween both
+    read position only), so leaving it turnable would offer the rigger a
+    control that silently does nothing.
+    """
+    try:
+        radius = max(cmds.getAttr(f'{jnt}.radius'), 1e-3)
+    except Exception:
+        radius = 1.0
+    solo = com.build_shape(
+        _SOLO_SHAPE, f'{jnt}{_SOLO_SUFFIX}',
+        radius=radius * ctrl_scale * _SOLO_RADIUS_FACTOR)
+    for shp in cmds.listRelatives(solo, shapes=True, fullPath=True) or []:
+        # nurbsCurve is the other shape type Maya gives alwaysDrawOnTop
+        # to, so the cage wins the depth fight the same way the orbs and
+        # guide lines do. Never saved — ctrl_shapes() already sweeps
+        # every curve under the group, so reapply_xray() re-arms it on
+        # scene open with no extra wiring.
+        cmds.setAttr(f'{shp}.alwaysDrawOnTop', 1)
+        cmds.setAttr(f'{shp}.overrideEnabled', 1)
+        cmds.setAttr(f'{shp}.overrideRGBColors', 1)
+        cmds.setAttr(f'{shp}.overrideColorRGB', *_SOLO_RGB, type='double3')
+    parented = cmds.parent(solo, ctrl, relative=True) or []
+    solo = parented[0].split('|')[-1] if parented else solo
+    # Every later resolver (_drive_handle, solo_handle_for_joint, the
+    # cleanup globs) derives this name from the JOINT, so a Maya-appended
+    # numeric suffix would not merely be ugly — _drive_handle would stop
+    # finding the handle and silently fall back to the ctrl, which is the
+    # half-migration this whole design is built to avoid. It cannot
+    # happen in the build's own ordering (the ctrl is childless when we
+    # get here), so say so loudly rather than degrade quietly.
+    if solo != f'{jnt}{_SOLO_SUFFIX}':
+        raise RuntimeError(
+            f'Armature: solo handle for {jnt!r} came back as {solo!r}, not '
+            f'{jnt}{_SOLO_SUFFIX} — a name clash would silently unhook the '
+            f'joint from its handle.')
+    for attr in ('sx', 'sy', 'sz', 'rx', 'ry', 'rz'):
+        cmds.setAttr(f'{solo}.{attr}', lock=True, keyable=False,
+                     channelBox=False)
+    for shp in cmds.listRelatives(solo, shapes=True, fullPath=True) or []:
+        cmds.setAttr(f'{shp}.visibility', 1 if shown else 0)
+    return solo
+
+
+# ─────────────────────────────────────────────
+# Solo handles — public API (the UI's entry points)
+# ─────────────────────────────────────────────
+
+def solo_handles() -> list:
+    """Every live solo handle transform (full paths), or []."""
+    if not cmds.objExists(_GRP):
+        return []
+    return [n for n in (cmds.listRelatives(_GRP, allDescendents=True,
+                                           type='transform',
+                                           fullPath=True) or [])
+            if n.split('|')[-1].endswith(_SOLO_SUFFIX)]
+
+
+def _shapes(node: str) -> list:
+    return cmds.listRelatives(node, shapes=True, fullPath=True) or []
+
+
+def _set_shapes_visible(node: str, visible: bool) -> None:
+    for shp in _shapes(node):
+        cmds.setAttr(f'{shp}.visibility', 1 if visible else 0)
+
+
+def solo_handles_visible() -> bool:
+    """True when ANY solo handle is currently shown (shape-level).
+    False also covers "there are none yet", which is what a UI wants
+    to render — and what build_armature captures across a teardown."""
+    for solo in solo_handles():
+        for shp in _shapes(solo):
+            if cmds.getAttr(f'{shp}.visibility'):
+                return True
+    return False
+
+
+def set_solo_handles_visible(visible: bool) -> bool:
+    """Show/hide every solo handle (shape-level). Returns the new state.
+
+    Visibility is display-only — the drive network keeps evaluating
+    while the handles are hidden (the ikHandles under them have shipped
+    with visibility=0 since the Armature existed), so this is purely
+    about whether the rigger can see and click them.
+
+    Hiding also EXITS every active per-ctrl swap (enter_solo below):
+    a swap hides the ctrl's own shapes, so sweeping the cages off while
+    a swap is live would leave that joint with no visible manipulator
+    at all. The bulk toggle must never strand a joint unclickable."""
+    handles = solo_handles()
+    if not handles:
+        raise RuntimeError(
+            'Armature: no solo handles yet — build the Armature first.')
+    for solo in handles:
+        _set_shapes_visible(solo, visible)
+        if not visible:
+            ctrl = cmds.listRelatives(solo, parent=True, fullPath=True)
+            if ctrl:
+                _set_shapes_visible(ctrl[0], True)
+    return bool(visible)
+
+
+def toggle_solo_handles() -> bool:
+    """Flip solo-handle visibility. Returns the new state."""
+    return set_solo_handles_visible(not solo_handles_visible())
+
+
+def solo_active(joint: str) -> bool:
+    """True while `joint` is in the swapped state: its ctrl's shapes
+    hidden, its solo cage shown (enter_solo)."""
+    solo = solo_handle_for_joint(joint)
+    ctrl = ctrl_for_joint(joint)
+    if not solo or not ctrl:
+        return False
+    cage_shown = any(cmds.getAttr(f'{s}.visibility') for s in _shapes(solo))
+    ctrl_hidden = all(not cmds.getAttr(f'{s}.visibility')
+                      for s in _shapes(ctrl))
+    return cage_shown and ctrl_hidden
+
+
+def enter_solo(joint: str) -> str:
+    """Swap `joint`'s manipulator: hide the main ctrl's SHAPES, show the
+    solo cage, select the cage — the Ctrl+Alt+RMB marking menu's 'Nudge
+    This Joint'. Returns the solo handle.
+
+    Shape-level on BOTH sides, and that is load-bearing: the ctrl and
+    the cage are coincident by construction, so showing both means a
+    picker fight, and hiding the ctrl's TRANSFORM would take its whole
+    DAG subtree — child ctrls and the very cage being revealed —
+    with it (measured 2026-07-21). Hiding only its shapes leaves the
+    subtree drawing and exactly one clickable thing where the joint is.
+    """
+    solo = solo_handle_for_joint(joint)
+    ctrl = ctrl_for_joint(joint)
+    if not solo or not ctrl:
+        raise RuntimeError(
+            f'Armature: no solo handle for {joint!r} — build the '
+            f'Armature first.')
+    _set_shapes_visible(ctrl, False)
+    _set_shapes_visible(solo, True)
+    cmds.select(solo, replace=True)
+    return solo
+
+
+def pending_solo_nudges(tol: float = 1e-6) -> list:
+    """Joints whose solo handle is currently off zero.
+
+    A nonzero handle is the one piece of Armature state that is real but
+    easy to lose sight of: the joint sits away from its ctrl, and once
+    the cages are hidden there is nothing on screen saying why. That is
+    what commit_solo_nudges exists to resolve."""
+    out = []
+    for solo in solo_handles():
+        short = solo.split('|')[-1]
+        if not short.endswith(_SOLO_SUFFIX):
+            continue
+        t = cmds.getAttr(f'{solo}.translate')[0]
+        if any(abs(v) > tol for v in t):
+            out.append(short[:-len(_SOLO_SUFFIX)])
+    return out
+
+
+def commit_solo_nudges(root: str = None) -> int:
+    """Bake every outstanding nudge into ctrl placement by rebuilding.
+    Returns how many joints had one (0 = nothing to do, no rebuild).
+
+    A rebuild IS the clean commit, and deliberately so: it re-derives
+    every ctrl from its joint's CURRENT world position, so each ctrl
+    lands back on its (nudged) joint and the handles come back at zero,
+    with nothing moving. Doing it by hand instead would mean shifting
+    each nudged ctrl by its handle's delta and counter-shifting every
+    direct child ctrl to keep the subtree still — the same result, more
+    moving parts, and a new way to be wrong.
+
+    No-op when nothing is nudged: toggling the cages on, looking, and
+    toggling them off again must stay instant and side-effect free.
+    """
+    pending = pending_solo_nudges()
+    if not pending:
+        return 0
+    build_armature(root=root)
+    return len(pending)
+
+
+def exit_solo(joint: str) -> str:
+    """Undo enter_solo: restore the ctrl's shapes, hide the cage,
+    select the ctrl — the marking menu's 'Back to Ctrl'. The nudge
+    value stays exactly where the rigger left it (values are never
+    persisted OR reset by visibility; see reset_solo_handles).
+    Returns the ctrl."""
+    solo = solo_handle_for_joint(joint)
+    ctrl = ctrl_for_joint(joint)
+    if not solo or not ctrl:
+        raise RuntimeError(
+            f'Armature: no solo handle for {joint!r} — build the '
+            f'Armature first.')
+    _set_shapes_visible(solo, False)
+    _set_shapes_visible(ctrl, True)
+    cmds.select(ctrl, replace=True)
+    return ctrl
+
+
+def reset_solo_handles(joints: list = None) -> int:
+    """Zero every solo handle (or just `joints`'), returning the count.
+
+    The escape hatch for "undo my nudges": each affected joint snaps back
+    onto its main ctrl, and — because only that joint's own drive network
+    reads its handle — nothing below it moves, exactly as when the nudge
+    was made. Nothing else needs resetting: a solo offset is never
+    persisted anywhere, it lives only in the handle's translate."""
+    targets = ([solo_handle_for_joint(j) for j in joints]
+               if joints is not None else solo_handles())
+    n = 0
+    for solo in targets:
+        if not solo or not cmds.objExists(solo):
+            continue
+        for attr in ('tx', 'ty', 'tz'):
+            plug = f'{solo}.{attr}'
+            if cmds.getAttr(plug, lock=True):
+                continue
+            if cmds.listConnections(plug, source=True, destination=False,
+                                    plugs=True):
+                continue   # driven (live mirror) — leave the driver alone
+            cmds.setAttr(plug, 0.0)
+        n += 1
+    return n
+
+
 # Module-level progress hook (Adrian, 2026-07-05 brain dump item 5):
 # the host window installs its bar once and EVERY build_armature call —
 # New Rig, limb drop, unbuild epilogue, mirror/duplicate/reparent,
@@ -901,11 +1340,22 @@ def build_armature(root: str = None, ctrl_scale: float = 1.0,
 
     Sequence: defensive skin detach → tear down any existing Armature
     → ensure aimers everywhere → orientation bake + aimer restore →
-    normalize pure-aim chains → ctrl tree + SC-IK / pointConstraint
-    edges + stretch.
+    normalize pure-aim chains → ctrl tree + solo handles + SC-IK /
+    pointConstraint edges + stretch.
+
+    Every ctrl this builds carries a zeroed SOLO handle and the
+    joint's drive network reads THAT, not the ctrl (module docstring,
+    SOLO HANDLES). With the handles at zero — which is how every build
+    leaves them — the joints land in the same world transforms they
+    always did; a rebuild also re-derives each ctrl from its joint's
+    current world position, so an existing nudge is baked into the ctrl
+    tree here rather than lost. Handle values are NEVER persisted;
+    shown/hidden is the one thing captured across the teardown, so a
+    limb drop cannot flip the cages back off under the user.
 
     Returns:
-        {'ctrls': [...], 'ik_edges': int, 'point_edges': int}
+        {'ctrls': [...], 'solos': [...], 'ik_edges': int,
+         'point_edges': int}
     """
     root = _resolve_root(root)
     conv = oc.resolve(nodes.get_registry() or '')
@@ -914,8 +1364,19 @@ def build_armature(root: str = None, ctrl_scale: float = 1.0,
         # Orientation bake corrupts live skins — detach (no-op if none).
         skin_connect_app.disconnect_all_skins()
 
+        # Shown/hidden survives the rebuild by CAPTURE, not by a layer
+        # node (see _make_solo_handle). False when none exist yet, so a
+        # first build always comes up hidden.
+        solos_shown = solo_handles_visible()
+
         if armature_exists():
             delete_armature()
+        # The first iteration's `_solo` display layer is retired (its
+        # hide override beats shape visibility — measured 2026-07-21).
+        # Delete it on sight so a scene built before the swap can't
+        # keep every cage invisible regardless of shape state.
+        if cmds.objExists(_SOLO_LAYER):
+            cmds.delete(_SOLO_LAYER)
 
         joints = _hierarchy(root)
         fresh = _ensure_aimers(joints, aimer_scale)
@@ -933,6 +1394,7 @@ def build_armature(root: str = None, ctrl_scale: float = 1.0,
                                      noRecurse=True)
 
         ctrls = {}
+        solos = {}          # joint -> its solo handle (drive node)
         ik_parents = set()
         ik_edges = 0
         point_edges = 0
@@ -960,7 +1422,9 @@ def build_armature(root: str = None, ctrl_scale: float = 1.0,
                 kind = (_COLOR_AIMING if own['mode'] == 'aim_child'
                         else _COLOR_PLACED)
                 ctrl = _make_root_ctrl(j, kind, ctrl_scale, grp)
-                cmds.pointConstraint(ctrl, j, mo=False,
+                solos[j] = _make_solo_handle(j, ctrl, ctrl_scale,
+                                             shown=solos_shown)
+                cmds.pointConstraint(solos[j], j, mo=False,
                                      name=f'{j}_amt_ptcon')
                 point_edges += 1
                 ctrls[j] = ctrl
@@ -1003,6 +1467,11 @@ def build_armature(root: str = None, ctrl_scale: float = 1.0,
                 if aim_edge and bone_len > 1e-4 and on_axis:
                     ctrl = _make_ctrl(j, kind, ctrl_scale,
                                       ctrl_parent)
+                    # The solo handle must exist BEFORE the edge is
+                    # wired — _wire_aim_edge resolves the drive node
+                    # itself and would silently fall back to the ctrl.
+                    solos[j] = _make_solo_handle(j, ctrl, ctrl_scale,
+                                                 shown=solos_shown)
                     _wire_aim_edge(parent_jnt, j, ctrl, stretch_channel)
                     ik_parents.add(parent_jnt)
                     ik_edges += 1
@@ -1019,7 +1488,9 @@ def build_armature(root: str = None, ctrl_scale: float = 1.0,
                             f'ctrl, placement untouched.')
                     ctrl = _make_ctrl(j, kind, ctrl_scale,
                                       ctrl_parent)
-                    cmds.pointConstraint(ctrl, j, mo=False,
+                    solos[j] = _make_solo_handle(j, ctrl, ctrl_scale,
+                                                 shown=solos_shown)
+                    cmds.pointConstraint(solos[j], j, mo=False,
                                          name=f'{j}_amt_ptcon')
                     point_edges += 1
 
@@ -1043,7 +1514,11 @@ def build_armature(root: str = None, ctrl_scale: float = 1.0,
         # Arm the live follow-rule hook AFTER every ctrl in this build
         # exists and is positioned (Task 1.2) — registering earlier
         # would fire on this loop's own _make_ctrl placement xforms.
-        _follow_watch_ctrls(list(ctrls.values()))
+        # SOLO handles are watched alongside the ctrls: a solo nudge
+        # moves its joint exactly as a ctrl drag does, so a twist riding
+        # that segment has to re-solve for it too. Omitting them would
+        # leave followers stale until the next unrelated ctrl move.
+        _follow_watch_ctrls(list(ctrls.values()) + list(solos.values()))
         # Re-arm the x-ray on every future scene open: Maya does not save
         # alwaysDrawOnTop, so a saved Armature reopens with its ctrls
         # buried inside the mesh unless something puts the flag back.
@@ -1058,6 +1533,7 @@ def build_armature(root: str = None, ctrl_scale: float = 1.0,
         _report_progress(total, total, '')   # final tick — bar hides
 
         return {'ctrls': list(ctrls.values()),
+                'solos': list(solos.values()),
                 'ik_edges': ik_edges,
                 'point_edges': point_edges}
 
@@ -1230,6 +1706,16 @@ def delete_armature() -> None:
         for eff in cmds.ls('*_amtEff', type='ikEffector') or []:
             if cmds.objExists(eff):
                 cmds.delete(eff)
+        # Solo handles ride under their ctrls, so the group cascade above
+        # already took them. This sweep is the name+type cleanup contract
+        # being honored anyway (every node type this module introduces
+        # gets an explicit entry, or an unbuild leaves orphans): it
+        # catches a handle that somehow ended up outside the group — a
+        # hand-reparent, a partially-restored scene — instead of leaving
+        # a stray cage floating with no ctrl to belong to.
+        for solo in cmds.ls(f'*{_SOLO_SUFFIX}', type='transform') or []:
+            if cmds.objExists(solo):
+                cmds.delete(solo)
 
 
 # ─────────────────────────────────────────────
@@ -1459,9 +1945,14 @@ def _follow_retrofit_joint(joint: str, rule: dict) -> None:
     for con in cmds.listRelatives(joint, type='pointConstraint') or []:
         if cmds.objExists(con):
             cmds.delete(con)
+    # Ordering note: _amtIkh goes before _amtSolo because the handle is
+    # its DAG parent now — deleting the solo first would cascade the
+    # ikHandle away and leave this loop's own objExists check to no-op
+    # on a node that was already gone. Same result, but the explicit
+    # order keeps the teardown readable and order-independent.
     for node in (f'{joint}_amtIkh', f'{joint}_amtDist',
                 f'{joint}_amtStretch', f'{joint}_amtEff',
-                f'{joint}_amtLine'):
+                f'{joint}_amtLine', f'{joint}{_SOLO_SUFFIX}'):
         if cmds.objExists(node):
             cmds.delete(node)
     if cmds.objExists(ctrl):
@@ -1694,7 +2185,8 @@ def _follow_on_undo_redo(*_) -> None:
 
 def _follow_watch_ctrls(ctrls: list) -> None:
     """Arm the live follow-rule hook: one attributeChangedCallback per
-    ctrl in THIS build. Installs the follow_rules change-listener AND
+    ctrl AND per solo handle in THIS build (both move joints, so both
+    have to re-solve followers). Installs the follow_rules change-listener AND
     the scene-teardown reset hook (_on_follow_scene_reset) on first use
     (module-global, never removed — flipping a dirty flag, or clearing
     it on a scene wipe, is harmless to leave registered across builds

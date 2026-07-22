@@ -45,8 +45,12 @@ class SkeletonHelpersBar(QtWidgets.QWidget):
     add_joint_requested        = QtCore.Signal()
     insert_between_requested   = QtCore.Signal()
     build_engine_ik_requested  = QtCore.Signal()
+    straighten_mid_requested   = QtCore.Signal()
+    solo_visibility_toggle_requested = QtCore.Signal()
+    solo_reset_requested       = QtCore.Signal()
 
     # Aimers group
+    aim_all_at_child_requested          = QtCore.Signal()
     aim_joints_requested                = QtCore.Signal()
     aimers_mirror_selected_requested    = QtCore.Signal()
     aimers_rebuild_all_requested        = QtCore.Signal()

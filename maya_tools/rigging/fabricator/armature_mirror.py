@@ -47,6 +47,8 @@ from maya_tools.utils.maya import side_tokens
 
 _CTRL_SUFFIX = '_amt_CTL'
 _AIMER_SUFFIX = '_JntOrient'
+_SOLO_SUFFIX = '_amtSolo'      # armature._SOLO_SUFFIX, mirrored here
+                               # for the same reason _CTRL_SUFFIX is
 _NODE_TAG = '_amtMirror_'      # every mirror DG node carries this
 
 _STATE = {
@@ -103,6 +105,8 @@ def _clear_network() -> None:
             for src_n, dst_n, attrs in (
                     (f'{a}{_CTRL_SUFFIX}', f'{b}{_CTRL_SUFFIX}',
                      ('ty', 'tz', 'rotateX')),
+                    (f'{a}{_SOLO_SUFFIX}', f'{b}{_SOLO_SUFFIX}',
+                     ('ty', 'tz')),
                     (f'{a}{_AIMER_SUFFIX}', f'{b}{_AIMER_SUFFIX}',
                      ('rotateX', 'aimTarget'))):
                 if not (cmds.objExists(src_n) and cmds.objExists(dst_n)):
@@ -303,6 +307,26 @@ def _wire_direction(driver: str) -> None:
                                    f'{dst_j}{_NODE_TAG}ctlRz')
                 cmds.connectAttr(out_rz, f'{dst_c}.rotateZ', force=True)
 
+        # SOLO handles (Kris request, 2026-07-21). A solo nudge moves
+        # only its own joint, so without this a symmetric armature goes
+        # ASYMMETRIC the moment the rigger nudges one — the far side
+        # simply stays behind, silently, which is worse than the feature
+        # not existing. Same mirror map as the ctrl translates above (tx
+        # negated across YZ, ty/tz direct) and for the same reason: both
+        # handles are world-aligned. Translate only — the handle's
+        # rotate and scale are locked by construction, and nothing
+        # downstream reads its orientation. Absent on either side (a
+        # follow-ruled joint never gets a ctrl to hang one under, and an
+        # Armature built before solo handles existed has none at all) is
+        # a normal skip, not an error.
+        src_s = f'{src_j}{_SOLO_SUFFIX}'
+        dst_s = f'{dst_j}{_SOLO_SUFFIX}'
+        if cmds.objExists(src_s) and cmds.objExists(dst_s):
+            out_stx = _neg_node(f'{src_s}.tx', f'{dst_j}{_NODE_TAG}soloTx')
+            cmds.connectAttr(out_stx, f'{dst_s}.tx', force=True)
+            cmds.connectAttr(f'{src_s}.ty', f'{dst_s}.ty', force=True)
+            cmds.connectAttr(f'{src_s}.tz', f'{dst_s}.tz', force=True)
+
         src_a = f'{src_j}{_AIMER_SUFFIX}'
         dst_a = f'{dst_j}{_AIMER_SUFFIX}'
         if cmds.objExists(src_a) and cmds.objExists(dst_a):
@@ -324,13 +348,20 @@ def _wire_direction(driver: str) -> None:
 # ─────────────────────────────────────────────
 
 def _side_of_selection() -> str:
-    """'lf' / 'rt' when the selection contains an Armature ctrl or
-    aimer of that side (last match wins), else ''."""
+    """'lf' / 'rt' when the selection contains an Armature ctrl, solo
+    handle or aimer of that side (last match wins), else ''.
+
+    The solo handle counts for the same reason the ctrl does: grabbing
+    the right-side one has to flip the driver side, or the first nudge
+    gets overwritten by the left side still driving.
+    """
     side = ''
     for node in cmds.ls(selection=True) or []:
         short = node.split('|')[-1]
         if short.endswith(_CTRL_SUFFIX):
             jnt = short[:-len(_CTRL_SUFFIX)]
+        elif short.endswith(_SOLO_SUFFIX):
+            jnt = short[:-len(_SOLO_SUFFIX)]
         elif short.endswith(_AIMER_SUFFIX):
             jnt = short[:-len(_AIMER_SUFFIX)]
         else:
