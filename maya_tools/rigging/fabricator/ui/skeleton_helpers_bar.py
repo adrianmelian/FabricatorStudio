@@ -2,12 +2,12 @@
 """SkeletonHelpersBar — the Armature toolbar (right-click-menu era,
 2026-07-19).
 
-Presented as a quiet panel-toned group box titled "Armature Tools":
-the four menus and the Symmetry toggle are one instrument, and the frame
-is what says so. It started ember-outlined (2026-07-21) and was toned
-down the next day against Adrian's mockup - the ember in this region
-belongs to the panel headers beside it, and spending it on a container
-frame too was what made the whole area shout.
+Headed by an ember "// ARMATURE TOOLS" label and no frame: the same
+treatment the Components / Rig Outliner / Properties panel headers wear,
+so every named region of the window reads the same way. The grouping
+went ember-outlined (2026-07-21), then panel-toned, then frameless
+(2026-07-22) - the label alone groups the five controls, and the box was
+only ever adding weight.
 
 Four MenuButtons — SKELETON / AIMERS / MIRROR / DUPLICATE — plus the
 checkable Symmetry toggle (plasma green; ember orange while active).
@@ -125,22 +125,24 @@ class SkeletonHelpersBar(QtWidgets.QWidget):
             traceback.print_exc()
 
     def create_layout(self):
-        # Panel-toned group box titled "Armature Tools". These four
-        # menus plus Symmetry are one instrument, and unframed they read
-        # as loose chrome sitting under the banner. The frame wraps the bar's own contents
-        # rather than the bar being wrapped by FSWindow, so
-        # refresh_state's setVisible still hides the whole thing and
-        # the host needs no change.
+        # An ember region label over the buttons, no frame (Adrian,
+        # 2026-07-22). Same widget and treatment as the Components /
+        # Rig Outliner / Properties headers, so all four named regions
+        # of the window read the same way. The grouping went
+        # ember-outlined, then panel-toned, then frameless: the label on
+        # its own groups the five controls and the box was only adding
+        # weight. refresh_state still hides the whole bar, label
+        # included, so FSWindow needs no change.
         outer = QtWidgets.QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        self.group = mindmeld_style.group_box('Armature Tools', panel=True)
-        outer.addWidget(self.group)
+        outer.setSpacing(4)
+        outer.addWidget(mindmeld_style.caps_label('// ARMATURE TOOLS',
+                                                  accent=True))
 
-        root = QtWidgets.QHBoxLayout(self.group)
-        # Zero here on purpose: the group box's own QSS padding is the
-        # single source of inset, and layout margins would stack on top.
+        root = QtWidgets.QHBoxLayout()
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(4)
+        outer.addLayout(root)
 
         self.joints_btn = self._menu_button(
             'Skeleton', 'Right-click for options.',

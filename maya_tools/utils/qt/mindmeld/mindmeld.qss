@@ -113,28 +113,6 @@ QGroupBox::title {
     color: #FF7A3D;
 }
 
-/* Panel variant — a quiet container for a group of related tools.
-   Iron fill a step up from the carbon ground, a barely-there border one
-   step lighter again, and a dim title instead of the ember one.
-
-   This replaced an ember-outlined variant (Adrian, 2026-07-22: "less
-   pronounced, less loud with the orange", with a mockup). Measured off
-   that mockup: border #1C1F25, fill #15181D on a #101216 ground, and a
-   label at #858B93 whose red-minus-blue is -14, i.e. a COOL GREY, not a
-   dimmed orange. The ember in this region belongs to the panel headers
-   next to it; spending it on a container frame as well was what made it
-   loud. Rendered here in tokens, which sit a step lighter than the
-   mockup's raw values but hold the same relationships. */
-QGroupBox[mindmeld="panel"] {
-    background-color: #1C2126;
-    border: 1px solid #262C33;
-}
-
-QGroupBox[mindmeld="panel"]::title {
-    color: #8A8378;
-    background-color: #1C2126;
-}
-
 /* ============================== LABELS ============================== */
 
 QLabel {

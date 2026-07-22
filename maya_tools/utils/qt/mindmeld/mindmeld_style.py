@@ -303,25 +303,6 @@ def pill(text: str, kind: str = "idle", *, parent: Optional[QWidget] = None) -> 
     return lbl
 
 
-def group_box(title: str, *, panel: bool = False,
-              parent: Optional[QWidget] = None) -> QGroupBox:
-    """Titled group frame around a set of related controls.
-
-    Default is the shared look: transparent ground, iron_3 outline,
-    ember title. `panel=True` is the quiet container instead: iron fill,
-    a barely-there border, dim title.
-
-    Reach for `panel=True` when the group sits next to other ember
-    labels. Ember is the label accent, but spending it on a container
-    frame AND on the headers beside it is what makes a region shout
-    (Adrian, 2026-07-22).
-    """
-    box = QGroupBox(title, parent)
-    if panel:
-        box.setProperty("mindmeld", "panel")
-    return box
-
-
 def horizontal_rule(*, parent: Optional[QWidget] = None) -> QFrame:
     """1px horizontal divider line."""
     f = QFrame(parent)
