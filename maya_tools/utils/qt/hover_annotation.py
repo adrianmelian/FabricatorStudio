@@ -20,6 +20,7 @@ from typing import Callable, Optional
 
 from PySide6 import QtWidgets, QtCore, QtGui
 
+from maya_tools.utils.qt.coach_card import fit_movie
 from maya_tools.utils.qt.mindmeld import mindmeld_style as _mm
 
 
@@ -99,24 +100,14 @@ class HoverAnnotation(QtWidgets.QWidget):
 
     # --- content ---------------------------------------------------------
     def _set_gif(self, path: str) -> bool:
+        # Scale-to-fit-never-upscale lives in coach_card.fit_movie so this
+        # card and the tour cards can never drift apart on it.
         self._stop_movie()
-        if not path:
+        fitted = fit_movie(path, GIF_MAX_W, GIF_MAX_H)
+        if fitted is None:
             self._gif.hide()
             return False
-        # Probe the native frame size, then scale to fit the cap, never up.
-        probe = QtGui.QMovie(path)
-        probe.jumpToFrame(0)
-        size = probe.currentImage().size()
-        probe.deleteLater()
-        w, h = size.width(), size.height()
-        if w <= 0 or h <= 0:
-            self._gif.hide()
-            return False
-        scale = min(GIF_MAX_W / float(w), GIF_MAX_H / float(h), 1.0)
-        dw, dh = int(w * scale), int(h * scale)
-        self._movie = QtGui.QMovie(path)
-        self._movie.setCacheMode(QtGui.QMovie.CacheAll)
-        self._movie.setScaledSize(QtCore.QSize(dw, dh))
+        self._movie, dw, dh = fitted
         self._gif.setFixedSize(dw, dh)
         self._gif.setMovie(self._movie)
         self._movie.start()
