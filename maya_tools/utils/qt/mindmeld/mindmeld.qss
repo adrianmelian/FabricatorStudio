@@ -179,6 +179,18 @@ QLabel[mindmeld="caps"] {
     font-weight: 500;
 }
 
+/* Accent variant — same small caps, ember instead of bone_dim. For a
+   caps label that NAMES a region rather than annotating one: the panel
+   headers over Components / Rig Outliner / Properties, which sit level
+   with the ember Armature Tools frame and read as its siblings
+   (Adrian, 2026-07-21). Ember is the label accent, so naming a region
+   is its job. Still never a CTA and never a state. */
+QLabel[mindmeld="caps-accent"] {
+    font-size: 11px;
+    color: #FF7A3D;
+    font-weight: 700;
+}
+
 /* helper text — small, dim, sits below an input */
 QLabel[mindmeld="helper"] {
     color: #8A8378;

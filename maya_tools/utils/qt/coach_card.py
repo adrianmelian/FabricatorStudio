@@ -120,35 +120,60 @@ def load_media(path: str, max_w: int, max_h: int):
 
 class _NotchFrame(QtWidgets.QWidget):
     """The card body: a rounded iron rect with a plasma outline and one
-    triangular notch. `notch_x` is a px offset from the card's left edge,
-    retargeted by CoachCard.show() so it lands under the anchor even
-    after the card has been clamped on-screen."""
+    triangular notch on whichever edge faces the anchor.
+
+    `notch_side` is 'top' | 'bottom' | 'left' | 'right' | 'none', and
+    `notch_pos` is a px offset along that edge from the card's origin,
+    both set by CoachCard.show(). 'none' draws a plain card: when the
+    card has had to be pushed away from its anchor to stay on-screen, a
+    notch would point at nothing, and a pointer aimed at the wrong thing
+    is worse than no pointer.
+    """
+
+    _SIDES = ('top', 'bottom', 'left', 'right', 'none')
 
     def __init__(self, radius: int, parent=None):
         super().__init__(parent)
         self._radius = radius
-        self.notch_x = 40
-        self.notch_down = False
+        self.notch_pos = 40
+        self.notch_side = 'top'
 
     def paintEvent(self, event):
         p = QtGui.QPainter(self)
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         w, h, n, r = self.width(), self.height(), NOTCH_H, self._radius
-        down = self.notch_down
-        body = (QtCore.QRectF(0.5, 0.5, w - 1, h - n - 1) if down
-                else QtCore.QRectF(0.5, n + 0.5, w - 1, h - n - 1))
+        side = self.notch_side
+
+        # The body insets by the notch depth on the notched edge only, so
+        # the triangle has room to sit outside it.
+        li = n if side == 'left' else 0
+        ti = n if side == 'top' else 0
+        ri = n if side == 'right' else 0
+        bi = n if side == 'bottom' else 0
+        body = QtCore.QRectF(li + 0.5, ti + 0.5,
+                             w - li - ri - 1, h - ti - bi - 1)
         path = QtGui.QPainterPath()
         path.addRoundedRect(body, r, r)
-        nx = max(r + 10, min(self.notch_x, w - r - 10))
-        if down:
-            path.moveTo(nx - 8, h - n - 1)
-            path.lineTo(nx, h - 1)
-            path.lineTo(nx + 8, h - n - 1)
-        else:
-            path.moveTo(nx - 8, n + 1)
-            path.lineTo(nx, 1)
-            path.lineTo(nx + 8, n + 1)
-        path.closeSubpath()
+
+        if side in ('top', 'bottom'):
+            nx = max(r + 10, min(self.notch_pos, w - r - 10))
+            if side == 'top':
+                path.moveTo(nx - 8, n + 1); path.lineTo(nx, 1)
+                path.lineTo(nx + 8, n + 1)
+            else:
+                path.moveTo(nx - 8, h - n - 1); path.lineTo(nx, h - 1)
+                path.lineTo(nx + 8, h - n - 1)
+            path.closeSubpath()
+        elif side in ('left', 'right'):
+            ny = max(r + 10, min(self.notch_pos, h - r - 10))
+            if side == 'left':
+                path.moveTo(n + 1, ny - 8); path.lineTo(1, ny)
+                path.lineTo(n + 1, ny + 8)
+            else:
+                path.moveTo(w - n - 1, ny - 8); path.lineTo(w - 1, ny)
+                path.lineTo(w - n - 1, ny + 8)
+            path.closeSubpath()
+
         p.fillPath(path, QtGui.QColor(_mm.TOKENS['iron']))
         pen = QtGui.QPen(QtGui.QColor(_mm.TOKENS['plasma']))
         pen.setWidthF(1.0)
@@ -308,30 +333,16 @@ class CoachCard:
             if then:
                 then()
 
+    _GAP = 6            # breathing room between anchor edge and card
+
     def show(self):
         c = self.card
         c.adjustSize()
         anchor = self._anchor
         if anchor is not None:
             try:
-                top = anchor.mapToGlobal(QtCore.QPoint(0, 0))
-                screen = (QtGui.QGuiApplication.screenAt(top)
-                          or QtGui.QGuiApplication.primaryScreen())
-                r = screen.availableGeometry()
-                below_y = top.y() + anchor.height() + 6
-                c.notch_down = below_y + c.height() > r.bottom()
-                center_x = top.x() + anchor.width() // 2
-                # Clamp the card fully on-screen; the notch chases the
-                # anchor instead of the card sliding off the edge (a
-                # right-docked Settings button was pushing the whole
-                # card off-screen, Adrian 2026-07-19).
-                x = center_x - 40
-                x = max(r.left() + 8, min(x, r.right() - c.width() - 8))
-                c.notch_x = center_x - x
-                y = (top.y() - c.height() - 6 if c.notch_down
-                     else below_y)
-                c.move(x, y)
-            except RuntimeError:
+                self._place_against(anchor)
+            except RuntimeError:        # anchor died between build and show
                 self._fallback_place()
         else:
             self._fallback_place()
@@ -339,6 +350,58 @@ class CoachCard:
         c.raise_()
         if self._poll is not None:
             self._poll.start()
+
+    def _place_against(self, anchor) -> None:
+        """Put the card beside the anchor, fully on-screen, always.
+
+        Tries below, above, right, then left, taking the first side the
+        card fits on WHOLE. Anything else is a bug the user experiences
+        as a card they cannot read: pointing at a tall widget (a
+        Fabricator panel) used to flip the card above the anchor and off
+        the top of the screen, because only the horizontal axis was ever
+        clamped (Adrian, 2026-07-21).
+
+        If no side fits, the card is clamped into the screen and drops
+        its notch rather than aiming it at nothing.
+        """
+        c = self.card
+        w, h = c.width(), c.height()
+        g = self._GAP
+        origin = anchor.mapToGlobal(QtCore.QPoint(0, 0))
+        ax, ay, aw, ah = origin.x(), origin.y(), anchor.width(), anchor.height()
+        screen = (QtGui.QGuiApplication.screenAt(origin)
+                  or QtGui.QGuiApplication.primaryScreen())
+        r = screen.availableGeometry()
+        cx, cy = ax + aw // 2, ay + ah // 2
+
+        def clamp(v, lo, hi):
+            return max(lo, min(v, hi))
+
+        # (side the NOTCH sits on, fixed coord, is_vertical_placement)
+        for side, fixed, vertical in (
+                ('top',    ay + ah + g, True),    # card below the anchor
+                ('bottom', ay - h - g,  True),    # card above the anchor
+                ('left',   ax + aw + g, False),   # card right of the anchor
+                ('right',  ax - w - g,  False)):  # card left of the anchor
+            if vertical:
+                if fixed < r.top() or fixed + h > r.bottom():
+                    continue
+                x = clamp(cx - 40, r.left() + 8, r.right() - w - 8)
+                c.notch_side, c.notch_pos = side, cx - x
+                c.move(x, fixed)
+                return
+            if fixed < r.left() or fixed + w > r.right():
+                continue
+            y = clamp(cy - 40, r.top() + 8, r.bottom() - h - 8)
+            c.notch_side, c.notch_pos = side, cy - y
+            c.move(fixed, y)
+            return
+
+        # Nothing fits cleanly (a card taller than the screen, a fully
+        # covered anchor). Stay readable and stop pretending to point.
+        c.notch_side = 'none'
+        c.move(clamp(cx - w // 2, r.left() + 8, r.right() - w - 8),
+               clamp(cy - h // 2, r.top() + 8, r.bottom() - h - 8))
 
     def _fallback_place(self):
         host = self.card.parent()

@@ -56,7 +56,7 @@ class PropertiesPanel(QtWidgets.QWidget):
         outer = QtWidgets.QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(6)
-        outer.addWidget(mindmeld_style.caps_label('// PROPERTIES'))
+        outer.addWidget(mindmeld_style.caps_label('// PROPERTIES', accent=True))
 
         self._scroll = QtWidgets.QScrollArea()
         self._scroll.setWidgetResizable(True)

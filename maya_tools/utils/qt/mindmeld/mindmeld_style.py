@@ -240,10 +240,16 @@ def field_label(text: str, *, parent: Optional[QWidget] = None) -> QLabel:
     return lbl
 
 
-def caps_label(text: str, *, parent: Optional[QWidget] = None) -> QLabel:
-    """Small caps label — neutral, used for column headers, info chips."""
+def caps_label(text: str, *, accent: bool = False,
+               parent: Optional[QWidget] = None) -> QLabel:
+    """Small caps label — neutral, used for column headers, info chips.
+
+    `accent=True` takes ember instead of bone_dim, for a caps label that
+    NAMES a region rather than annotating one (a panel header). Keeps the
+    caps sizing, so it stays a header rather than becoming a field label.
+    """
     lbl = QLabel(text.upper(), parent)
-    lbl.setProperty("mindmeld", "caps")
+    lbl.setProperty("mindmeld", "caps-accent" if accent else "caps")
     return lbl
 
 

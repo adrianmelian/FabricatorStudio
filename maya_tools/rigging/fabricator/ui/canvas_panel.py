@@ -146,7 +146,7 @@ class CanvasPanel(QtWidgets.QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(6)
 
-        root.addWidget(mindmeld_style.caps_label('// RIG OUTLINER'))
+        root.addWidget(mindmeld_style.caps_label('// RIG OUTLINER', accent=True))
 
         search_row = QtWidgets.QHBoxLayout()
         search_row.setContentsMargins(0, 0, 0, 0)

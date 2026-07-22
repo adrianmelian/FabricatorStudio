@@ -115,7 +115,7 @@ class PalettePanel(QtWidgets.QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(6)
 
-        root.addWidget(mindmeld_style.caps_label('// COMPONENTS'))
+        root.addWidget(mindmeld_style.caps_label('// COMPONENTS', accent=True))
 
         # Consolidated search — one bar for the whole palette, above the
         # tree so it stays reachable regardless of collapse state.

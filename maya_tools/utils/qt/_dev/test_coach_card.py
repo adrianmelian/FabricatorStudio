@@ -195,14 +195,94 @@ def test_gif_card_fits_a_full_width_clip():
           usable >= coach_card.GIF_MAX_W)
 
 
-def test_notch_flip_default():
+def test_notch_frame_paints_every_side():
     f = coach_card._NotchFrame(8)
-    check('notch points up by default', f.notch_down is False)
+    check('notch sits on top by default', f.notch_side == 'top')
     f.resize(200, 120)
-    f.notch_x = 10_000          # far past the right edge
-    pix = QtGui.QPixmap(f.size())
-    f.render(pix)               # clamping happens in paintEvent
-    check('an out-of-range notch_x still paints without raising', True)
+    for side in coach_card._NotchFrame._SIDES:
+        f.notch_side = side
+        f.notch_pos = 10_000        # far past the edge; clamped in paintEvent
+        try:
+            f.render(QtGui.QPixmap(f.size()))
+            ok = True
+        except Exception:
+            ok = False
+        check(f'notch_side={side!r} paints without raising', ok)
+
+
+def _screen_rect():
+    return QtGui.QGuiApplication.primaryScreen().availableGeometry()
+
+
+def _place(anchor_geo, card_w, card_h):
+    """Run the real placement against a synthetic anchor, return the
+    card's final geometry plus which edge the notch landed on."""
+    r = _screen_rect()
+    host = QtWidgets.QWidget()
+    host.setGeometry(*anchor_geo)
+    c = coach_card.CoachCard(host, 'T', 'B')
+    c.card.setFixedSize(card_w, card_h)
+    c._place_against(host)
+    g = QtCore.QRect(c.card.pos(), QtCore.QSize(card_w, card_h))
+    return g, c.card.notch_side, r
+
+
+def test_card_never_leaves_the_screen():
+    """The bug Adrian hit: a tall anchor flipped the card above itself
+    and off the top of the screen, because only x was ever clamped."""
+    r = _screen_rect()
+    cases = [
+        ('short anchor near the top',   (400, 40, 120, 30)),
+        ('TALL panel anchor',           (400, 120, 260, max(40, r.height() - 260))),
+        ('anchor at the very bottom',   (400, max(0, r.bottom() - 40), 120, 30)),
+        ('anchor at the far right',     (max(0, r.right() - 130), 300, 120, 30)),
+        ('anchor at the far left',      (0, 300, 120, 30)),
+        ('anchor taller than screen',   (400, 0, 200, r.height() + 400)),
+    ]
+    for label, geo in cases:
+        g, side, _ = _place(geo, coach_card.CARD_W_GIF, 560)
+        on = (g.left() >= r.left() and g.top() >= r.top()
+              and g.right() <= r.right() and g.bottom() <= r.bottom())
+        check(f'{label}: card fully on-screen (notch={side})', on)
+
+
+def test_tall_anchor_goes_beside_not_above():
+    """A full-height panel has no room above or below, so the card must
+    move to its side. Geometry is derived from the REAL screen: the
+    offscreen plugin gives an 800x800 virtual desktop, narrow enough that
+    a hardcoded anchor leaves no room either side and the test passes
+    vacuously on 'none'."""
+    r = _screen_rect()
+    card_w = min(coach_card.CARD_W_GIF, r.width() // 2 - 40)
+    aw = 200
+    if r.width() < card_w + aw + 60:
+        check('tall anchor sits beside (skipped, screen too narrow)', True)
+        return
+    # Hard against the left edge, so the whole card fits to its right.
+    tall = (r.left() + 10, r.top() + 60, aw, max(40, r.height() - 120))
+    _, side, _ = _place(tall, card_w, min(560, r.height() - 40))
+    check(f'tall anchor places the card to its side (got {side!r})',
+          side == 'left')
+
+
+def test_notch_points_back_at_the_anchor():
+    """Wherever the card lands, the notch must sit over the anchor - a
+    pointer aimed at empty space is worse than no pointer."""
+    r = _screen_rect()
+    geo = (r.left() + 300, r.top() + 60, 120, 30)
+    host = QtWidgets.QWidget()
+    host.setGeometry(*geo)
+    c = coach_card.CoachCard(host, 'T', 'B')
+    c.card.setFixedSize(coach_card.CARD_W, 200)
+    c._place_against(host)
+
+    check(f'short anchor keeps the card below it (got {c.card.notch_side!r})',
+          c.card.notch_side == 'top')
+    notch_x = c.card.pos().x() + c.card.notch_pos
+    anchor_centre_x = geo[0] + geo[2] // 2
+    check(f'notch lands on the anchor centre '
+          f'(notch {notch_x}, anchor {anchor_centre_x})',
+          abs(notch_x - anchor_centre_x) <= 1)
 
 
 if __name__ == '__main__':
