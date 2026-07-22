@@ -2,12 +2,13 @@
 """SkeletonHelpersBar — the Armature toolbar (right-click-menu era,
 2026-07-19).
 
-Headed by an ember "// ARMATURE TOOLS" label and no frame: the same
-treatment the Components / Rig Outliner / Properties panel headers wear,
-so every named region of the window reads the same way. The grouping
-went ember-outlined (2026-07-21), then panel-toned, then frameless
-(2026-07-22) - the label alone groups the five controls, and the box was
-only ever adding weight.
+An ember "// ARMATURE TOOLS" label sitting ABOVE a panel-framed row of
+controls. The label matches the Components / Rig Outliner / Properties
+headers, so every named region of the window reads the same way; the
+frame groups the five controls without the label being boxed in with
+them. That last part is why this is not a QGroupBox: a group box notches
+its title into the border, which is exactly the frame-around-the-text
+Adrian did not want (2026-07-22).
 
 Four MenuButtons — SKELETON / AIMERS / MIRROR / DUPLICATE — plus the
 checkable Symmetry toggle (plasma green; ember orange while active).
@@ -125,24 +126,33 @@ class SkeletonHelpersBar(QtWidgets.QWidget):
             traceback.print_exc()
 
     def create_layout(self):
-        # An ember region label over the buttons, no frame (Adrian,
-        # 2026-07-22). Same widget and treatment as the Components /
-        # Rig Outliner / Properties headers, so all four named regions
-        # of the window read the same way. The grouping went
-        # ember-outlined, then panel-toned, then frameless: the label on
-        # its own groups the five controls and the box was only adding
-        # weight. refresh_state still hides the whole bar, label
-        # included, so FSWindow needs no change.
+        # Ember label ABOVE a framed button row (Adrian, 2026-07-22).
+        # A QGroupBox cannot do this: its title is a subcontrol notched
+        # INTO the border, which is the frame-around-the-text he did not
+        # want. A plain caps label plus a separate panel frame separates
+        # the two, so the box groups the controls and the label names
+        # them without being boxed itself.
+        #
+        # The label is the same widget and treatment as the Components /
+        # Rig Outliner / Properties headers, so all four named regions of
+        # the window read identically. The frame is the stock
+        # QFrame[mindmeld="panel"] rule, no new styling.
+        #
+        # refresh_state still hides the whole bar, label included, so
+        # FSWindow needs no change.
         outer = QtWidgets.QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(4)
         outer.addWidget(mindmeld_style.caps_label('// ARMATURE TOOLS',
                                                   accent=True))
 
-        root = QtWidgets.QHBoxLayout()
-        root.setContentsMargins(0, 0, 0, 0)
+        self.group = QtWidgets.QFrame()
+        mindmeld_style.tag(self.group, 'panel')
+        outer.addWidget(self.group)
+
+        root = QtWidgets.QHBoxLayout(self.group)
+        root.setContentsMargins(10, 8, 10, 8)
         root.setSpacing(4)
-        outer.addLayout(root)
 
         self.joints_btn = self._menu_button(
             'Skeleton', 'Right-click for options.',
