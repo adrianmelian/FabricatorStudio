@@ -308,6 +308,9 @@ class RibbonPackInstallerUI(QtWidgets.QDialog):
         super(RibbonPackInstallerUI, self).__init__(parent or get_maya_main_window())
         self.setObjectName("RibbonPackInstallerWindow")
         self.installer_dir = installer_dir
+        # Must exist before _build_ui(): its _refresh_target_label() call reads
+        # this via _current_core_root() (mirrors RibbonPack_Uninstall.py).
+        self._explicit_core_root = None
 
         self.setWindowFlags(QtCore.Qt.Window | QtCore.Qt.WindowStaysOnTopHint)
         self.setMinimumWidth(460)
@@ -385,8 +388,6 @@ class RibbonPackInstallerUI(QtWidgets.QDialog):
         footer.setAlignment(QtCore.Qt.AlignCenter)
         footer.setStyleSheet(f"color:{_BONE_DIM}; font-size:8pt;")
         root.addWidget(footer)
-
-        self._explicit_core_root = None
 
     def _apply_theme(self) -> None:
         self.setStyleSheet(f"""
