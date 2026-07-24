@@ -178,6 +178,45 @@ def parse_wired_install(user_setup_text: str) -> tuple:
     return m.group(1), (mode_m.group(1) if mode_m else 'copy')
 
 
+_VERSION_LINE_RE = re.compile(r'^\s*Fabricator\s+([0-9][^\s]*)\s*$')
+
+
+def read_installed_version(payload_root: str) -> str:
+    """Version string from a VERSION.txt sitting at `payload_root` (the
+    parent of maya_tools/), or '' if absent or unparseable.
+
+    package_release writes the file with 'Fabricator <version>' as line 1;
+    a development checkout has no VERSION.txt at all, which is not an
+    error. Never raises — this only drives display copy, and an installer
+    that dies reading an optional file would be worse than one that says
+    less.
+    """
+    path = os.path.join(payload_root, 'VERSION.txt')
+    try:
+        with open(path, 'r', encoding='utf-8') as fh:
+            first = fh.readline()
+    except OSError:
+        return ''
+    m = _VERSION_LINE_RE.match(first)
+    return m.group(1) if m else ''
+
+
+def detect_existing_install(install_dir: str) -> tuple:
+    """(is_update, installed_version) for the payload that would be
+    replaced if the user installed into `install_dir`.
+
+    is_update is True whenever a maya_tools/ tree is already sitting at
+    the destination, because THAT is what install_payload wipes. The
+    version may still be '' (a pre-VERSION.txt build or a dev checkout),
+    so the two are reported separately and the copy handles the unknown
+    case rather than inventing a number.
+    """
+    root = install_root_for(install_dir)
+    if not os.path.isdir(os.path.join(root, 'maya_tools')):
+        return False, ''
+    return True, read_installed_version(root)
+
+
 def _initial_install_dir(user_setup_path: str = None) -> str:
     """Prefill for the Install Directory field: a previously wired COPY
     install's root (so re-running the installer = update in place),
@@ -639,6 +678,9 @@ class FabricatorInstallerUI(QtWidgets.QDialog):
         self.setObjectName("FabricatorInstallerWindow")
         self.installer_dir = installer_dir
         self.repo_root = None  # set on successful install
+        # Real value comes from _refresh_update_state() at the end of
+        # _build_ui; initialized here so no code path can read it unset.
+        self._is_update = False
 
         # Frameless popover (Adrian, 2026-07-20): no OS title bar, so the
         # first thing a user ever sees from FabricatorStudio reads as one
@@ -704,14 +746,12 @@ class FabricatorInstallerUI(QtWidgets.QDialog):
         rule.setStyleSheet(f"background-color:{_IRON_3};")
         root.addWidget(rule)
 
-        body = QtWidgets.QLabel(
-            "Installs the FabricatorStudio pipeline toolset. No admin "
-            "rights needed. Nothing is sent over the network by this "
-            "installer."
-        )
-        body.setWordWrap(True)
-        body.setStyleSheet(f"color:{_BONE}; font-size:10pt;")
-        root.addWidget(body)
+        # Text is set by _refresh_update_state(), which swaps install vs
+        # update copy from what is actually on disk at the chosen path.
+        self._body = QtWidgets.QLabel()
+        self._body.setWordWrap(True)
+        self._body.setStyleSheet(f"color:{_BONE}; font-size:10pt;")
+        root.addWidget(self._body)
 
         dir_caps = QtWidgets.QLabel("INSTALL DIRECTORY")
         dir_caps.setStyleSheet(
@@ -768,6 +808,66 @@ class FabricatorInstallerUI(QtWidgets.QDialog):
         footer.setAlignment(QtCore.Qt.AlignCenter)
         footer.setStyleSheet(f"color:{_BONE_DIM}; font-size:8pt;")
         root.addWidget(footer)
+
+        # Every widget the refresh touches now exists.
+        self._dir_edit.textChanged.connect(lambda _t: self._refresh_update_state())
+        self._refresh_update_state()
+
+    # ---------- install vs update copy ----------
+
+    def _payload_version(self) -> str:
+        """Version of the build sitting next to this installer."""
+        return read_installed_version(
+            os.path.join(self.installer_dir, _PAYLOAD_DIR_NAME))
+
+    def _refresh_update_state(self) -> None:
+        """Say whether this is a first install or an update, and name the
+        versions when they are known.
+
+        Driven by what is on disk at the chosen path, not by the userSetup
+        wiring, so browsing to a different folder re-answers the question.
+        Linked mode never shows update copy: it wires to the payload where
+        it sits and replaces nothing.
+        """
+        install_dir = self._dir_edit.text().strip()
+        linked = self._mode_linked.isChecked()
+        is_update, installed = (False, '')
+        if install_dir and not linked:
+            try:
+                is_update, installed = detect_existing_install(install_dir)
+            except OSError:
+                is_update, installed = (False, '')
+
+        incoming = self._payload_version()
+        self._is_update = is_update
+
+        if not is_update:
+            self._body.setText(
+                "Installs the FabricatorStudio pipeline toolset. No admin "
+                "rights needed. Nothing is sent over the network by this "
+                "installer."
+            )
+            self._install_button.setText("Install")
+            return
+
+        if installed and incoming and installed == incoming:
+            headline = ("FabricatorStudio %s is already installed here. "
+                        "Reinstalling replaces it with the same version."
+                        % installed)
+        elif installed and incoming:
+            headline = ("Found FabricatorStudio %s here. This updates it to "
+                        "%s." % (installed, incoming))
+        elif incoming:
+            headline = ("Found an existing FabricatorStudio here. This "
+                        "updates it to %s." % incoming)
+        else:
+            headline = "Found an existing FabricatorStudio here. This replaces it."
+
+        self._body.setText(
+            headline
+            + " Your project configs are kept. Restart Maya when it finishes."
+        )
+        self._install_button.setText("Update")
 
     # ---------- frameless drag ----------
 
@@ -869,6 +969,8 @@ class FabricatorInstallerUI(QtWidgets.QDialog):
     def _on_mode_changed(self, linked: bool) -> None:
         self._dir_edit.setEnabled(not linked)
         self._browse_btn.setEnabled(not linked)
+        # Linked mode replaces nothing, so the answer changes with the mode.
+        self._refresh_update_state()
 
     # ---------- install ----------
 
@@ -882,7 +984,8 @@ class FabricatorInstallerUI(QtWidgets.QDialog):
 
     def run_installation(self) -> None:
         self._install_button.setEnabled(False)
-        self._install_button.setText("Installing...")
+        self._install_button.setText(
+            "Updating..." if self._is_update else "Installing...")
         QtWidgets.QApplication.processEvents()
         cmds.waitCursor(state=True)
 
@@ -975,7 +1078,9 @@ class FabricatorInstallerUI(QtWidgets.QDialog):
                 pass
             self._set_status(f'Installation failed: {exc}', ok=False)
             self._install_button.setEnabled(True)
-            self._install_button.setText("Install")
+            # Re-derive the verb rather than hardcoding "Install": a failed
+            # update must not offer to "Install" over the tree it just wiped.
+            self._refresh_update_state()
             self.show()
             self.raise_()
 

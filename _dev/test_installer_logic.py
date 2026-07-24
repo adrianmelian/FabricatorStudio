@@ -363,6 +363,113 @@ def test_fresh_install_defaults_toolbar_only():
     assert loaded['load_menu'] is True and loaded['load_shelf'] is True
 
 
+def _make_install_tree(version_line=None):
+    """A destination dir holding an installed payload, as install_payload
+    lays it out: <dir>/fabricator_studio/{maya_tools/, VERSION.txt}.
+    version_line=None writes no VERSION.txt (pre-v1 or dev checkout)."""
+    import Fabricator_Install as FI
+    dest = Path(tempfile.mkdtemp())
+    root = Path(FI.install_root_for(str(dest)))
+    (root / 'maya_tools').mkdir(parents=True)
+    if version_line is not None:
+        (root / 'VERSION.txt').write_text(
+            version_line + '\nBuilt from: HEAD\nPackaged: 2026-07-22T11:14:27\n',
+            encoding='utf-8')
+    return str(dest)
+
+
+def test_read_installed_version_parses_the_package_release_stamp():
+    import Fabricator_Install as FI
+    dest = _make_install_tree('Fabricator 1.0.1')
+    root = FI.install_root_for(dest)
+    assert FI.read_installed_version(root) == '1.0.1'
+
+
+def test_read_installed_version_is_empty_when_absent_or_malformed():
+    import Fabricator_Install as FI
+    # No VERSION.txt at all (dev checkout) — must not raise.
+    dest = _make_install_tree(None)
+    assert FI.read_installed_version(FI.install_root_for(dest)) == ''
+    # Present but not the expected shape.
+    dest2 = _make_install_tree('some other header')
+    assert FI.read_installed_version(FI.install_root_for(dest2)) == ''
+    # A path that does not exist at all.
+    assert FI.read_installed_version(str(Path(tempfile.mkdtemp()) / 'nope')) == ''
+
+
+def test_detect_existing_install_keys_off_maya_tools_not_version_txt():
+    import Fabricator_Install as FI
+    # Empty dir: first install.
+    assert FI.detect_existing_install(tempfile.mkdtemp()) == (False, '')
+    # Installed WITH a version stamp.
+    assert FI.detect_existing_install(
+        _make_install_tree('Fabricator 1.0.1')) == (True, '1.0.1')
+    # Installed WITHOUT a stamp: still an update, version unknown. This is
+    # the case that must not report False — install_payload wipes
+    # maya_tools/ regardless of whether VERSION.txt was ever written.
+    assert FI.detect_existing_install(_make_install_tree(None)) == (True, '')
+
+
+def test_update_copy_names_both_versions_and_switches_the_verb():
+    import Fabricator_Install as FI
+    from PySide6 import QtWidgets
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    dest = _make_install_tree('Fabricator 1.0.1')
+    # Stand in for the payload beside the installer, so _payload_version()
+    # reads 1.1.0 without needing a real Fabricator_Data tree.
+    installer_dir = Path(tempfile.mkdtemp())
+    payload = installer_dir / FI._PAYLOAD_DIR_NAME
+    payload.mkdir()
+    (payload / 'VERSION.txt').write_text('Fabricator 1.1.0\n', encoding='utf-8')
+
+    host = QtWidgets.QWidget()   # named, so GC cannot delete the children
+    dlg = FI.FabricatorInstallerUI(str(installer_dir), parent=host)
+    dlg._dir_edit.setText(dest)
+
+    body = dlg._body.text()
+    assert '1.0.1' in body and '1.1.0' in body, body
+    assert 'project configs are kept' in body, body
+    assert 'Restart Maya' in body, body
+    assert dlg._install_button.text() == 'Update'
+    assert dlg._is_update is True
+
+    # Point somewhere empty: back to first-install copy.
+    dlg._dir_edit.setText(tempfile.mkdtemp())
+    assert dlg._install_button.text() == 'Install'
+    assert dlg._is_update is False
+    assert 'No admin' in dlg._body.text()
+
+    # Linked mode replaces nothing, so it must never claim an update even
+    # when the directory does hold an install.
+    dlg._dir_edit.setText(dest)
+    assert dlg._is_update is True
+    dlg._mode_linked.setChecked(True)
+    assert dlg._is_update is False, 'linked mode wires, it does not replace'
+    assert dlg._install_button.text() == 'Install'
+    dlg.deleteLater()
+
+
+def test_same_version_reinstall_says_so_rather_than_claiming_an_update():
+    import Fabricator_Install as FI
+    from PySide6 import QtWidgets
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    dest = _make_install_tree('Fabricator 1.1.0')
+    installer_dir = Path(tempfile.mkdtemp())
+    payload = installer_dir / FI._PAYLOAD_DIR_NAME
+    payload.mkdir()
+    (payload / 'VERSION.txt').write_text('Fabricator 1.1.0\n', encoding='utf-8')
+
+    host = QtWidgets.QWidget()   # named, so GC cannot delete the children
+    dlg = FI.FabricatorInstallerUI(str(installer_dir), parent=host)
+    dlg._dir_edit.setText(dest)
+    body = dlg._body.text()
+    assert 'already installed' in body, body
+    assert 'same version' in body, body
+    dlg.deleteLater()
+
+
 def main():
     tests = [(n, f) for n, f in sorted(globals().items())
              if n.startswith('test_') and callable(f)]
