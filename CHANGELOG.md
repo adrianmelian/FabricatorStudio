@@ -7,6 +7,22 @@ Format: `## [date] - short title` then bullet points. Keep entries brief.
 
 ---
 
+## [2026-07-25] - v1.1.2: updates keep the Ribbon Pack installed
+
+- **Updating Fabricator no longer removes the Advanced Ribbon Pack.** The
+  updater rebuilds the install folder from the new payload, and that wipe was
+  silently deleting the pack's ribbon modules and Advanced templates. The
+  updater now preserves add-on pack files across the wipe: manifest-driven for
+  packs installed with v1.0.1+ of the pack installer, with a built-in fallback
+  that recognizes existing Ribbon Pack installs made before that.
+- **Ribbon Pack v1.0.1**: the pack installer now records what it installed
+  (a manifest beside the install), which is what makes the preservation exact.
+  Uninstalling the pack removes the record too.
+- If your Ribbon Pack already went missing after a v1.1.1 update: re-run
+  RibbonPack_Install.py once and restart Maya; from v1.1.2 on, updates keep it.
+
+---
+
 ## [2026-07-25] - v1.1.1: template drop onto an existing skeleton
 
 - **Loading a template into a scene that already holds its skeleton works
