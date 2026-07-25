@@ -254,7 +254,7 @@ def get_maya_main_window():
 def _preserve_paths(target_maya_tools: str) -> dict:
     """Snapshot bytes for paths that must survive a reinstall wipe:
     the project_configs/ tree (studio may have added custom configs) and
-    any per-user Fabricator prefs directory. Returns a dict suitable for
+    every add-on pack overlay file. Returns a dict suitable for
     _restore_paths(). Missing paths are simply absent from the dict — no
     placeholder entries, so restore is a straight "if present, write it
     back" loop."""
@@ -266,7 +266,73 @@ def _preserve_paths(target_maya_tools: str) -> dict:
     if os.path.isdir(project_configs):
         preserved['project_configs'] = _snapshot_tree(project_configs)
 
+    pack_files = _snapshot_pack_files(target_maya_tools)
+    if pack_files:
+        preserved['pack_files'] = pack_files
+
     return preserved
+
+
+# Add-on packs (Ribbon Pack today) overlay their files INTO maya_tools/,
+# so the update wipe below would silently uninstall them (2026-07-25
+# field report: the first outside Ribbon Pack user updated the core and
+# lost every Advanced template and ribbon module). Preserve them like
+# project_configs: manifest-driven when the pack installer left its
+# manifest at the install root, plus a pattern fallback for field
+# installs made by pack installers that predate the in-tree manifest.
+_PACK_MANIFEST_SUFFIX = 'pack_manifest.json'
+
+# Known overlay paths of packs shipped before manifests landed in-tree
+# (RibbonPack v1.0.0). Glob patterns relative to maya_tools/.
+_LEGACY_PACK_GLOBS = (
+    'rigging/fabricator/modules/ribbon_*.py',
+    'rigging/fabricator/modules/_ribbon_common.py',
+    'rigging/fabricator/templates/Advanced_*.yaml',
+    'docs/components/ribbon-*.md',
+)
+
+
+def _snapshot_pack_files(target_maya_tools: str) -> dict:
+    """{rel-to-install-root: bytes} for every add-on pack overlay file
+    found in the tree about to be wiped. Manifest files list paths
+    relative to the install root (e.g. 'maya_tools/rigging/...')."""
+    import glob as _glob
+    import json as _json
+
+    install_root = os.path.dirname(target_maya_tools)
+    snapshot = {}
+
+    manifests = _glob.glob(
+        os.path.join(install_root, '*' + _PACK_MANIFEST_SUFFIX))
+    for mpath in manifests:
+        try:
+            with open(mpath, 'r', encoding='utf-8') as fh:
+                manifest = _json.load(fh)
+            rels = list(manifest.get('files', []))
+        except (OSError, ValueError):
+            continue   # unreadable manifest: fall through to the globs
+        for rel in rels:
+            full = os.path.join(install_root, rel.replace('/', os.sep))
+            if os.path.isfile(full):
+                try:
+                    with open(full, 'rb') as fh:
+                        snapshot[rel] = fh.read()
+                except OSError:
+                    pass
+
+    if not manifests:
+        for pattern in _LEGACY_PACK_GLOBS:
+            for full in _glob.glob(os.path.join(
+                    target_maya_tools, pattern.replace('/', os.sep))):
+                rel = os.path.relpath(
+                    full, install_root).replace(os.sep, '/')
+                try:
+                    with open(full, 'rb') as fh:
+                        snapshot[rel] = fh.read()
+                except OSError:
+                    pass
+
+    return snapshot
 
 
 def _snapshot_tree(path: str) -> dict:
@@ -293,6 +359,20 @@ def _restore_paths(target_maya_tools: str, preserved: dict) -> None:
         )
         for rel, data in preserved['project_configs'].items():
             dest = os.path.join(project_configs, rel)
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            with open(dest, 'wb') as fh:
+                fh.write(data)
+
+    # Pack overlays go back exactly where they were — EXCEPT any path the
+    # fresh payload now ships itself (a pack file promoted into the free
+    # core): the payload's copy is newer than the preserved pack copy and
+    # must win, so an existing destination is never overwritten.
+    if 'pack_files' in preserved:
+        install_root = os.path.dirname(target_maya_tools)
+        for rel, data in preserved['pack_files'].items():
+            dest = os.path.join(install_root, rel.replace('/', os.sep))
+            if os.path.exists(dest):
+                continue
             os.makedirs(os.path.dirname(dest), exist_ok=True)
             with open(dest, 'wb') as fh:
                 fh.write(data)

@@ -470,6 +470,83 @@ def test_same_version_reinstall_says_so_rather_than_claiming_an_update():
     dlg.deleteLater()
 
 
+# ─── add-on pack survival across a core update ──────────────────────────
+# Regression for the 2026-07-25 field report (first outside Ribbon Pack
+# install): install_payload's rmtree(maya_tools) wipe deleted every pack
+# overlay file on a core update, silently uninstalling the Ribbon Pack.
+
+def _pack_update_fixture(with_manifest):
+    """An installed tree carrying pack overlay files (+ optional in-tree
+    pack manifest at the install root), and a fresh payload dir that does
+    NOT ship those files. Returns (root, payload_dir, pack_rels)."""
+    import json as _json
+    import Fabricator_Install as FI
+
+    root = Path(FI.install_root_for(tempfile.mkdtemp()))
+    mt = root / 'maya_tools'
+    (mt / 'rigging' / 'fabricator' / 'modules').mkdir(parents=True)
+    (mt / 'rigging' / 'fabricator' / 'templates').mkdir(parents=True)
+    (mt / 'rigging' / 'fabricator' / 'fs_app.py').write_text('OLD CORE\n')
+    pack_rels = [
+        'maya_tools/rigging/fabricator/modules/ribbon_spine.py',
+        'maya_tools/rigging/fabricator/modules/_ribbon_common.py',
+        'maya_tools/rigging/fabricator/templates/Advanced_Biped.blueprint.yaml',
+    ]
+    for rel in pack_rels:
+        p = root / Path(rel)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(f'PACK CONTENT {rel}\n')
+    if with_manifest:
+        (root / 'ribbon_pack_manifest.json').write_text(
+            _json.dumps({'version': '1.0', 'pack_version': '1.0.1',
+                         'files': pack_rels}), encoding='utf-8')
+
+    payload = Path(tempfile.mkdtemp()) / FI._PAYLOAD_DIR_NAME
+    (payload / 'maya_tools' / 'rigging' / 'fabricator').mkdir(parents=True)
+    (payload / 'maya_tools' / 'rigging' / 'fabricator'
+     / 'fs_app.py').write_text('NEW CORE\n')
+    return root, payload, pack_rels
+
+
+def test_core_update_preserves_pack_files_listed_by_in_tree_manifest():
+    import Fabricator_Install as FI
+    root, payload, pack_rels = _pack_update_fixture(with_manifest=True)
+    FI.install_payload(str(root), str(root / 'icons'), str(payload))
+    core = (root / 'maya_tools' / 'rigging' / 'fabricator' / 'fs_app.py')
+    assert core.read_text() == 'NEW CORE\n', 'payload did not land'
+    for rel in pack_rels:
+        p = root / Path(rel)
+        assert p.is_file(), f'pack file wiped by update: {rel}'
+        assert p.read_text() == f'PACK CONTENT {rel}\n', f'corrupted: {rel}'
+    assert (root / 'ribbon_pack_manifest.json').is_file(), \
+        'in-tree manifest lost'
+
+
+def test_core_update_preserves_legacy_ribbon_files_without_manifest():
+    """Field installs made by RibbonPack 1.0.0 have no in-tree manifest;
+    the known ribbon overlay paths must survive by pattern fallback."""
+    import Fabricator_Install as FI
+    root, payload, pack_rels = _pack_update_fixture(with_manifest=False)
+    FI.install_payload(str(root), str(root / 'icons'), str(payload))
+    for rel in pack_rels:
+        assert (root / Path(rel)).is_file(), \
+            f'legacy pack file wiped by update: {rel}'
+
+
+def test_core_update_payload_wins_over_preserved_pack_file():
+    """If a future free payload ships a path the pack also carried, the
+    payload's copy must win (the preserved pack copy is stale)."""
+    import Fabricator_Install as FI
+    root, payload, pack_rels = _pack_update_fixture(with_manifest=True)
+    promoted = Path(pack_rels[0])
+    dest = payload / promoted
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text('PROMOTED TO FREE\n')
+    FI.install_payload(str(root), str(root / 'icons'), str(payload))
+    assert (root / promoted).read_text() == 'PROMOTED TO FREE\n', \
+        'stale pack copy clobbered the payload file'
+
+
 def main():
     tests = [(n, f) for n, f in sorted(globals().items())
              if n.startswith('test_') and callable(f)]

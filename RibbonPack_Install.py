@@ -271,11 +271,23 @@ def install_ribbon_pack(pack_dir: str = None, core_root: str = None) -> dict:
         )
 
     installed_files = copy_pack_files(core_root, pack_dir, manifest)
+
+    # Leave the manifest at the install root (BESIDE maya_tools, so the
+    # core updater's wipe never touches it): Fabricator_Install reads any
+    # *pack_manifest.json there to preserve pack overlay files across a
+    # core update (2026-07-25 — a core update used to silently uninstall
+    # the pack). Uninstall removes it again.
+    installed_manifest = os.path.join(core_root, _MANIFEST_NAME)
+    with open(installed_manifest, 'w', encoding='utf-8') as fh:
+        json.dump(manifest, fh, indent=1)
+        fh.write('\n')
+
     refreshed = refresh_component_discovery(core_root)
 
     return {
         'core_root': core_root,
         'installed_files': installed_files,
+        'installed_manifest': installed_manifest,
         'refreshed': refreshed,
         'pack_version': manifest.get('pack_version', ''),
         'min_core_version': min_core_version,

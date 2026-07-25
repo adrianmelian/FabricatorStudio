@@ -184,6 +184,16 @@ def uninstall_ribbon_pack(pack_dir: str = None, core_root: str = None) -> dict:
         )
 
     removed_files = remove_pack_files(core_root, manifest)
+
+    # The install drops a manifest copy at the core root so the core
+    # updater can preserve pack files across an update; a full uninstall
+    # must take it back out or the next core update would "preserve"
+    # files that no longer exist (harmless but confusing in reports).
+    installed_manifest = os.path.join(core_root, _MANIFEST_NAME)
+    if os.path.isfile(installed_manifest):
+        os.remove(installed_manifest)
+        removed_files.append(installed_manifest)
+
     refreshed = refresh_component_discovery(core_root)
 
     return {
