@@ -1082,11 +1082,20 @@ def _create_skeleton_from_blueprint(bp: Blueprint) -> list:
 
     _reconcile_component_joint_connections()
 
-    created_roots = [j for j in created
-                     if not (cmds.listRelatives(j, parent=True,
-                                                type='joint') or [])]
-    if created_roots:
-        nodes.set_registry_root_joint(created_roots[0])
+    # Root registration must survive the skip-existing branch: an
+    # additive load onto a scene that already holds the blueprint's
+    # joints creates nothing, but the registry was just torn down and
+    # respawned above, so it must still be wired to a root or
+    # build_armature dies at _resolve_root (template-drop-on-existing-
+    # skeleton, 2026-07-24). Resolve roots over every blueprint joint
+    # present in the scene, created or pre-existing.
+    scene_joints = [js.name for js in bp.skeleton_joints
+                    if cmds.objExists(js.name)]
+    roots = [j for j in scene_joints
+             if not (cmds.listRelatives(j, parent=True,
+                                        type='joint') or [])]
+    if roots:
+        nodes.set_registry_root_joint(roots[0])
 
     # Fresh joints go straight into the _Joints reference layer —
     # visible, viewport-unselectable (Armature ctrls are the interface).
