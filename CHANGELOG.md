@@ -7,6 +7,16 @@ Format: `## [date] - short title` then bullet points. Keep entries brief.
 
 ---
 
+## [2026-07-25] - v1.1.1: template drop onto an existing skeleton
+
+- **Loading a template into a scene that already holds its skeleton works
+  again** (was: "Armature: no root joint" and the load died). The load now
+  adopts the joints already in the scene, creates only what is missing, and
+  stands the Armature up as usual. Partial overlaps (just the root, or part
+  of the hierarchy) are covered too.
+
+---
+
 ## [2026-07-22] - v1.1.0: Fabricator's guided tour
 
 Fabricator opens into an empty window, and its two ways in (File > New Rig, or
