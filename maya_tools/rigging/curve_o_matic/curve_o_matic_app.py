@@ -109,9 +109,12 @@ def swap_shape(name: str, ctrl: str, worldspace: bool = False) -> None:
     """Replace ctrl's nurbsCurve shape nodes with shapes from the named library entry.
 
     Transform identity is preserved — only the shape nodes are swapped, so all
-    incoming/outgoing connections on the transform (constraints, message links,
-    keyframes, anim layers, etc.) survive intact. Override colour on the first
-    existing shape is captured and re-applied to every new shape.
+    incoming/outgoing connections on the TRANSFORM (constraints, message links,
+    keyframes, anim layers, etc.) survive intact. Shape-level state does NOT
+    survive on its own (the old shape nodes are deleted), so it is captured and
+    re-applied via _capture_shape_state/_apply_shape_state — override colour,
+    override display type, and the incoming .visibility connection the rig's
+    IK/FK switching drives. See _capture_shape_state for why that matters.
 
     worldspace=True counter-rotates the incoming CVs by the ctrl's inverse world
     rotation, so the swapped curve reads axis-aligned in WORLD space (flat in an
@@ -124,7 +127,7 @@ def swap_shape(name: str, ctrl: str, worldspace: bool = False) -> None:
 
     old_shapes = cmds.listRelatives(ctrl, shapes=True, type='nurbsCurve', fullPath=True) or []
 
-    color_attrs: dict = _capture_override_color(old_shapes[0]) if old_shapes else {}
+    shape_state = _capture_shape_state(old_shapes)
 
     tmp = build_shape(name, '_com_swap_tmp')
     tmp_shapes = cmds.listRelatives(tmp, shapes=True, type='nurbsCurve', fullPath=True) or []
@@ -143,7 +146,7 @@ def swap_shape(name: str, ctrl: str, worldspace: bool = False) -> None:
 
     ctrl_short = ctrl.split('|')[-1]
     new_shapes = cmds.listRelatives(ctrl, shapes=True, type='nurbsCurve', fullPath=True) or []
-    _apply_override_color(new_shapes, color_attrs)
+    _apply_shape_state(new_shapes, shape_state)
     for i, s in enumerate(new_shapes):
         suffix = '' if i == 0 else str(i)
         cmds.rename(s, f'{ctrl_short}Shape{suffix}')
@@ -178,33 +181,19 @@ def deserialize_shape_to(transform: str, data: dict) -> None:
 
     Deletes existing nurbsCurve shapes, creates new ones built from data['shapes'],
     parents them under transform. Transform identity (and all its connections)
-    are preserved. Override colour and any incoming shape-level .visibility
-    connection (rig IK/FK vis switching) on the existing shapes are reapplied
-    to every new shape.
+    are preserved. Shape-level state (override colour and display type, plus any
+    incoming .visibility connection from rig IK/FK vis switching) is captured
+    from the existing shapes and reapplied to every new one — see
+    _capture_shape_state, shared verbatim with swap_shape.
     """
     if not cmds.objExists(transform):
         raise RuntimeError(f"Transform not found: '{transform}'")
     if not data.get('shapes'):
         raise RuntimeError('deserialize_shape_to: data has no shapes')
 
-    # Capture colour from first existing shape, if any
     old_shapes = cmds.listRelatives(transform, shapes=True, type='nurbsCurve',
                                     fullPath=True) or []
-    color_attrs: dict = _capture_override_color(old_shapes[0]) if old_shapes else {}
-
-    # Capture shape-level .visibility wiring. Rig switching (e.g. the
-    # IK/FK vis conditions in Fabricator's SimpleIK/ribbon limbs) drives
-    # ctrl visibility on the SHAPE nodes so the transform channels stay
-    # clean — deleting the old shapes severs that, leaving ctrls stuck
-    # visible after a shape swap (Adrian's R-arm IK/FK bug, 2026-07-12).
-    # Recapture the source plug and rewire every new shape below.
-    vis_src = ''
-    for s in old_shapes:
-        conns = cmds.listConnections(f'{s}.visibility', source=True,
-                                     destination=False, plugs=True) or []
-        if conns:
-            vis_src = conns[0]
-            break
+    shape_state = _capture_shape_state(old_shapes)
 
     # Build a temp transform from the data, then steal its shapes
     tmp = _build_transform_from_data(data, '_com_deser_tmp')
@@ -224,10 +213,7 @@ def deserialize_shape_to(transform: str, data: dict) -> None:
     transform_short = transform.split('|')[-1]
     new_shapes = cmds.listRelatives(transform, shapes=True, type='nurbsCurve',
                                     fullPath=True) or []
-    _apply_override_color(new_shapes, color_attrs)
-    if vis_src:
-        for s in new_shapes:
-            cmds.connectAttr(vis_src, f'{s}.visibility', force=True)
+    _apply_shape_state(new_shapes, shape_state)
     for i, s in enumerate(new_shapes):
         suffix = '' if i == 0 else str(i)
         cmds.rename(s, f'{transform_short}Shape{suffix}')
@@ -423,15 +409,27 @@ _OVERRIDE_COLOR_ATTRS = (
     'overrideColor',
 )
 
+# Everything carried across a shape replacement. The colour set plus
+# overrideDisplayType (the template flag SimpleIK stamps on the PV guide
+# line) and lodVisibility. Deliberately NOT 'visibility' itself: when the
+# rig drives it, the captured value is whatever mode the switch happened
+# to be in, and baking that onto a ctrl whose vis connection could not be
+# restored would leave it invisible with no way back short of a rebuild.
+_SHAPE_CARRY_ATTRS = _OVERRIDE_COLOR_ATTRS + (
+    'overrideDisplayType', 'lodVisibility',
+)
 
-def _capture_override_color(shape: str) -> dict:
-    """Best-effort read of an override-colour attr set from a shape node.
+
+def _capture_override_color(shape: str, attrs: tuple = None) -> dict:
+    """Best-effort read of an attr set from a shape node.
 
     Returns a dict of attr_name -> value for every attr that read successfully.
     Missing or query-failing attrs are silently skipped (Maya version drift).
+    Defaults to the override-colour set; callers pass _SHAPE_CARRY_ATTRS for
+    the full shape-replacement carry set.
     """
     out: dict = {}
-    for attr in _OVERRIDE_COLOR_ATTRS:
+    for attr in (attrs or _OVERRIDE_COLOR_ATTRS):
         try:
             out[attr] = cmds.getAttr(f'{shape}.{attr}')
         except Exception:
@@ -440,11 +438,68 @@ def _capture_override_color(shape: str) -> dict:
 
 
 def _apply_override_color(shapes: list[str], color_attrs: dict) -> None:
-    """Best-effort apply of a captured override-colour attr set to shapes."""
+    """Best-effort apply of a captured attr set to shapes."""
     for s in shapes:
         for attr, val in color_attrs.items():
             try:
                 cmds.setAttr(f'{s}.{attr}', val)
+            except Exception:
+                pass
+
+
+def _capture_shape_state(old_shapes: list[str]) -> dict:
+    """Capture the shape-level state that must survive a shape replacement.
+
+    Both shape-replacing paths (swap_shape and deserialize_shape_to) delete
+    the old nurbsCurve shape nodes, which destroys everything living ON those
+    nodes. Two things have to come back:
+
+    - Override colour and display type, so a swapped ctrl keeps its colour and
+      a templated curve stays templated.
+    - The incoming .visibility connection. Rig switching (the IK/FK vis
+      conditions in Fabricator's SimpleIK and the ribbon limbs) drives ctrl
+      visibility on the SHAPE nodes so the transform's channels stay clean for
+      animators. Deleting the shapes severs it, leaving FK ctrls drawn in IK
+      mode (Adrian's R-arm bug 2026-07-12; reported again from the field
+      2026-07-28 against the Ctrl Editor's Swap button, which is how we
+      learned deserialize_shape_to had been fixed and swap_shape had not).
+
+    That second fix living in exactly one of the two functions is what caused
+    the field report, so both now go through this pair. Any future
+    shape-replacing function must too.
+
+    Returns {'attrs': {...}, 'vis_src': '<plug>' or ''}. Empty/degenerate
+    input yields an empty state that _apply_shape_state no-ops on.
+    """
+    state: dict = {'attrs': {}, 'vis_src': ''}
+    if not old_shapes:
+        return state
+    state['attrs'] = _capture_override_color(old_shapes[0], _SHAPE_CARRY_ATTRS)
+    for s in old_shapes:
+        conns = cmds.listConnections(f'{s}.visibility', source=True,
+                                     destination=False, plugs=True) or []
+        if conns:
+            state['vis_src'] = conns[0]
+            break
+    return state
+
+
+def _apply_shape_state(new_shapes: list[str], state: dict) -> None:
+    """Re-apply a _capture_shape_state result to freshly built shapes.
+
+    Attrs go on first, the visibility connection second, so a driven
+    visibility always wins over any static value that came along with the
+    attr set. The source node is re-checked for existence: swapping a ctrl on
+    a rig that is mid-unbuild degrades to 'no vis wiring' rather than raising.
+    """
+    if not state:
+        return
+    _apply_override_color(new_shapes, state.get('attrs') or {})
+    src = state.get('vis_src') or ''
+    if src and cmds.objExists(src.split('.')[0]):
+        for s in new_shapes:
+            try:
+                cmds.connectAttr(src, f'{s}.visibility', force=True)
             except Exception:
                 pass
 

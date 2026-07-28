@@ -310,6 +310,117 @@ def _check_renamed_component_joints() -> list:
     )]
 
 
+# IK/FK visibility switching drives the ctrl's SHAPE nodes (so the
+# transform's channels stay clean for animators). Maps the condition-node
+# name suffix each limb component creates to the fab_role values it drives.
+_VIS_COND_ROLES = {
+    '_fk_vis_cond': ('fk_ctrl',),
+    '_ik_vis_cond': ('ik_end_ctrl', 'pv_ctrl'),
+}
+
+
+def _owned_ctrls_by_role(component_node: str, roles: tuple) -> list:
+    """Every ctrl tagged with one of `roles` and owned by component_node.
+
+    Deliberately not fs_app._find_ctrl_by_role: that returns a single ctrl
+    per role, and the whole point here is the three FK ctrls that share
+    fab_role='fk_ctrl'. No cmds.ls glob — it is namespace-restricted and
+    returns nothing on referenced rigs in anim scenes.
+    """
+    out = []
+    for ctrl in cmds.ls(type='transform') or []:
+        if not cmds.attributeQuery('fab_role', node=ctrl, exists=True):
+            continue
+        if cmds.getAttr(f'{ctrl}.fab_role') not in roles:
+            continue
+        if not cmds.attributeQuery('fab_owner', node=ctrl, exists=True):
+            continue
+        owners = cmds.listConnections(f'{ctrl}.fab_owner',
+                                      source=True, destination=False) or []
+        if component_node in owners:
+            out.append(ctrl)
+    return out
+
+
+def _find_severed_ctrl_vis() -> list:
+    """Ctrl shapes that should be driven by their limb's IK/FK vis
+    condition and are not. Returns [(shape, source_plug), ...].
+
+    Scoped per component via its own bind_blend_nodes multi (where
+    SimpleIK tracks the condition nodes), so it never guesses at names and
+    never crosses limbs.
+    """
+    from maya_tools.utils.maya import network_nodes as nn
+
+    severed = []
+    for cnode in nodes.get_all_component_nodes():
+        for node in nn.get_message_targets(cnode, 'bind_blend_nodes') or []:
+            if not cmds.objExists(node) or cmds.nodeType(node) != 'condition':
+                continue
+            suffix = next((s for s in _VIS_COND_ROLES if node.endswith(s)), '')
+            if not suffix:
+                continue
+            src = f'{node}.outColorR'
+            for ctrl in _owned_ctrls_by_role(cnode, _VIS_COND_ROLES[suffix]):
+                for shp in cmds.listRelatives(ctrl, shapes=True,
+                                              type='nurbsCurve',
+                                              fullPath=True) or []:
+                    conns = cmds.listConnections(f'{shp}.visibility',
+                                                 source=True, destination=False,
+                                                 plugs=True) or []
+                    if not conns or conns[0] != src:
+                        severed.append((shp, src))
+    return severed
+
+
+def _check_ctrl_vis_severed() -> list:
+    """A rig whose IK/FK switch no longer hides the inactive ctrls.
+
+    Cause in the wild: replacing a ctrl's curve shape deletes the shape
+    nodes the switch was wired to. Fixed in curve_o_matic 2026-07-28, but
+    scenes broken by an earlier build stay broken until something rewires
+    them — a normal build does (connectAttr force=True), which is exactly
+    why this is a warning and not a gate. The value is telling the user
+    WHY their switch looked broken, and offering the repair without
+    making them rebuild.
+    """
+    severed = _find_severed_ctrl_vis()
+    if not severed:
+        return []
+
+    ctrls = sorted({s.split('|')[-2] for s, _ in severed
+                    if len(s.split('|')) > 1})
+    lines = '\n'.join(f'  • {c}' for c in ctrls[:12])
+    if len(ctrls) > 12:
+        lines += f'\n  • ...and {len(ctrls) - 12} more'
+
+    def _fix() -> str:
+        n = 0
+        for shp, src in _find_severed_ctrl_vis():
+            if cmds.objExists(shp) and cmds.objExists(src.split('.')[0]):
+                cmds.connectAttr(src, f'{shp}.visibility', force=True)
+                n += 1
+        return f'Reconnected {n} control shape visibility connection(s).'
+
+    return [BuildIssue(
+        key='ctrl_vis_severed',
+        title=f"{len(ctrls)} control(s) no longer follow the IK/FK switch",
+        description=(
+            "These controls' shapes have lost the visibility connection "
+            'from their limb\'s IK/FK switch, so they stay drawn in the '
+            'mode that should hide them. This happens when a control\'s '
+            'curve shape is replaced by a tool version older than '
+            '2026-07-28: swapping the shape deleted the nodes the switch '
+            'was wired to. Building the rig repairs it, or press Fix to '
+            'reconnect them now without a rebuild:\n' + lines),
+        fix_label='Reconnect visibility',
+        fixable=True,
+        skippable=True,
+        fix=_fix,
+        severity='warning',
+    )]
+
+
 _CHECKS = (
     _check_overconnected,
     _check_orphaned_modules,
@@ -318,6 +429,7 @@ _CHECKS = (
     _check_version_stamp,
     _check_misparented_ctrls,
     _check_renamed_component_joints,
+    _check_ctrl_vis_severed,
 )
 
 

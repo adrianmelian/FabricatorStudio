@@ -33,7 +33,9 @@ choice on every component that has a shape option.
    origin. To restyle something that already exists instead: select one or more curve
    ctrls in the viewport first, then click **Swap** to replace their shapes with the one
    selected in the list. Swap preserves the ctrl's transform and every incoming/outgoing
-   connection (constraints, message links, keyframes, anim layers).
+   connection on it (constraints, message links, keyframes, anim layers), and carries the
+   shape-level state across to the new shapes too: override color and display type, plus
+   the visibility connection an IK/FK switch drives.
 4. Optional: with curve ctrl(s) selected, pick a color from the **Color** dropdown and
    click **Apply Color** to set the override color on their shapes.
 
@@ -51,7 +53,13 @@ CtrlEditor shows up in four places, all backed by the same shape library:
 Buttons and what they do, by their on-screen names:
 
 - **Swap**: replaces the nurbsCurve shape node(s) on each selected ctrl with the chosen
-  library shape. Transform identity and all connections are untouched.
+  library shape. Transform identity and all of the transform's connections are untouched.
+  The old shape nodes are deleted, so their own state is captured and re-applied to the
+  new shapes: override color, override display type, and any incoming visibility
+  connection. That last one is what keeps an IK/FK switch working after a swap; before
+  2026-07-28 it was dropped, and swapping an FK ctrl left it drawn in IK mode. If you have
+  a rig built with an older version showing that symptom, the pre-build checks now offer a
+  one-click **Reconnect visibility** fix, and a normal Build Rig repairs it too.
 - **Build at Origin**: builds the selected library shape as a new curve at world origin,
   named `<shape>_ctrl`. It does not snap to the current viewport selection (a
   selection-snapping build exists in the underlying API but is not wired to this button).

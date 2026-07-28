@@ -24,6 +24,12 @@ IK/FK matching is built into the IK components themselves (SimpleIK, IKLeg, Quad
 
 To diagnose a match that misbehaves: `get_component_details` on the IK component shows its controls and chains; check the `ik_fk_blend` attribute and the component's built state, and diagnose from there.
 
+## "My FK controls stay visible in IK mode after I changed their shape"
+
+Known bug in Ctrl Editor versions before 2026-07-28, reported from the field. The IK/FK switch drives visibility on the control's *shape* nodes (so the transform's channels stay clean for animators), and Swap used to delete those shape nodes without carrying the connection across. Only controls under a vis switch are affected: the FK controls, the IK end control, and the pole vector. Spine, finger, and switch controls swap cleanly, which is why it reads as intermittent. A rebuild also silently repairs it, which makes it look self-healing.
+
+Current versions preserve the connection. For a scene already broken: the pre-build checks flag it as "controls no longer follow the IK/FK switch" with a **Reconnect visibility** fix, or a normal Build Rig rewires it. Shape edits survive an unbuild/build, so rebuilding does not cost the user their swap.
+
 ## "How do I transfer, mirror, or fix skin weights?"
 
 Fabricator's Skin tools cover this: Save/Transfer Temp Skin (a closest-point transfer with tolerant matching for near-identical topology), Mirror Skin Weights, Copy/Paste/Average Weights, Add/Remove Influence (adds a new influence at weight 0 and locked, so it never disturbs existing weights), Smoosh (weight relaxation), and the full Skin IO window for save/load/transfer. Which tool fits depends on the situation, so narrow the actual problem first.
