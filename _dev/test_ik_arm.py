@@ -91,7 +91,15 @@ def test_contract_identity_and_options():
 
     c = IK_ARM_CONTRACT
     assert c.type == 'IKArm' and c.display_name == 'IK Arm'
-    assert c.color == '#5BFF8B' and c.default_region == 'arm'
+    # Amber, not the spring green '#5BFF8B' the 2026-07-09 design spec
+    # named: that value predates the palette-wide pass the spec itself
+    # deferred as "the separate pre-ship polish task" (design doc §345.6).
+    # That pass put every IK component on warm shades (SimpleIK peach,
+    # IKArm amber, IKLeg orange, QuadLeg rust) and handed the greens to
+    # the ribbon family, so spring green would now collide with
+    # RibbonIKLeg. The assertion was never updated with it and had been
+    # failing since. Read the colour off the contract, not the old spec.
+    assert c.color == '#FFB84D' and c.default_region == 'arm'
     # Derived Limbs (2026-07-11): opt-in is the contract, not a class bool.
     assert c.limb_features == ('fingers', 'twists')
 
