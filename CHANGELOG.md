@@ -7,6 +7,25 @@ Format: `## [date] - short title` then bullet points. Keep entries brief.
 
 ---
 
+## [2026-07-28] - v1.1.3: control shapes keep their IK/FK visibility
+
+- **Changing a control's curve shape no longer breaks the IK/FK switch.**
+  Swapping the shape on an FK control, an IK hand, or a pole vector in the
+  Ctrl Editor left that control drawn in the mode that should hide it. The
+  switch drives visibility on the control's shape nodes so the transform's
+  channels stay clean for animators, and replacing the shape deleted the
+  nodes the switch was wired to. Swap now carries that wiring across, along
+  with the override colour and display type. Affects every IK limb: IK Arm,
+  IK Leg, Quad Leg, and the Ribbon Pack's ribbon arm and leg.
+- **Rigs already affected are detected and repaired.** The pre-build checks
+  now flag "controls no longer follow the IK/FK switch" with a one-click
+  Reconnect visibility fix. Building the rig also repairs it, and control
+  shape edits survive an unbuild and rebuild, so no shape work is lost
+  either way.
+- Reported from the field. Thanks for the catch.
+
+---
+
 ## [2026-07-25] - v1.1.2: updates keep the Ribbon Pack installed
 
 - **Updating Fabricator no longer removes the Advanced Ribbon Pack.** The
