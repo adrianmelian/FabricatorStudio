@@ -16,7 +16,7 @@
        "command": "maya_tools.framework.project_setup_ui:ProjectSetupUI.show_window"}
     ]},
     {"id": "armature", "zone": "left", "label": "Armature", "items": [
-      {"type": "WindowLauncher", "id": "armature_import", "glyph": "",
+      {"type": "WindowLauncher", "id": "armature_import", "glyph": "ARMA",
        "icon": "fs_armature_icon.png", "title": "Armature Import",
        "tooltip": "Import an Armature USD export: mesh, skeleton and skin weights come in from the file, the Fabricator blueprint is built and loaded, ready for Build Rig. Import into an empty scene.",
        "command": "maya_tools.rigging.armature_import.armature_import_ui:ArmatureImportWindow.show_window"}
