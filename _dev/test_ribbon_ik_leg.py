@@ -52,7 +52,7 @@ def test_contract_identity_and_options():
     c = RIBBON_IK_LEG_CONTRACT
     assert c.type == 'RibbonIKLeg'
     assert c.display_name == 'Ribbon IK Leg'
-    assert c.color == '#9B7BFF'
+    assert c.color == '#1ACC1A'  # green — ribbon family (recolored in 1.0.0)
     assert c.default_region == 'leg'
     # Inherits ALL of IKLeg's surface untouched.
     assert c.min_joints == 4 and c.max_joints == 4
