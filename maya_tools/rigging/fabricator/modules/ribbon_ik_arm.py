@@ -201,6 +201,7 @@ RIBBON_IK_ARM_CONTRACT = Contract(
         SIMPLE_IK_CONTRACT.joint_roles[2].__class__(
             'end', 'Wrist joint', descendant_of='mid'),
     ),
+    extra_guides=SIMPLE_IK_CONTRACT.extra_guides,   # pv marker carries forward
     space_consumers=SIMPLE_IK_CONTRACT.space_consumers,
     actions=SIMPLE_IK_CONTRACT.actions,
     mirror_rules=SIMPLE_IK_CONTRACT.mirror_rules,

@@ -27,11 +27,22 @@ Pulled directly from `SIMPLE_IK_CONTRACT.options_schema` in `modules/simple_ik.p
 | `ctrl_color` | `yellow` | Override color applied to all of this component's control shapes. |
 | `pv_shape` | `diamond` | CtrlEditor shape used for the pole vector control. |
 | `pv_distance` | `0.5` | PV placement distance, expressed as a fraction of total chain length, both at initial build and in the live auto-PV graph. |
+| `pv_position` | (unset) | Pole vector worldspace position, captured from the **Pole vector marker guide** (see Pole vector placement below). When set, the build places the PV control exactly here and the auto-PV graph follows this side; when unset, placement is automatic. |
 | `switch_ctrl_shape` | `cog` | CtrlEditor shape used for the IK/FK switch control. |
 | `stretchy` | `False` | Classic stretchy IK: the chain extends past rest length once the IK end control is pulled beyond it. Stretch only, no squash. IK mode only — FK pose is unaffected. |
 | `channels` | keyable: tx, ty, tz, rx, ry, rz | Channel-box setup applied to the FK controls (the IK end control always gets full translate + rotate regardless of this setting — see Gotchas). |
 
 Two more animatable attributes are added at build time but are not part of `options_schema` (they're per-instance keyable attributes on controls, not build-time options): `ik_fk_blend` (float, 0-1, default 1.0) on the switch control, and `pin` (float, 0-1, default 0.0) on the PV control. See Animator features.
+
+## Pole vector placement
+
+Where the PV control builds is resolved once, in this order:
+
+1. **Marker override.** SimpleIK declares a `pv` extra guide (same rails as IKLeg's heel/toe pivots): a side-colored reticle locator that spawns at the automatic placement during guide sync. Drag it and its position is captured into `pv_position`; the build then uses that position verbatim — including the far side of the limb for digitigrade/backward-bending joints.
+2. **Bent chain (mid-joint bend ≥ 15°).** Classic perpendicular projection of the mid joint off the start→end line, scaled to `chain_len × pv_distance`. An authored bend plane (A-pose elbow, quadruped leg) is the answer and is used as-is.
+3. **Near-straight chain (< 15°).** The chain's own perpendicular is millimetres of bind-pose noise — normalizing it is what used to throw leg PVs across the midline (left leg's PV building in front of the right leg, issue #32). Instead, the PV pushes along the MID JOINT'S own local axis that points most forward: the joint axis most aligned with the chain is excluded (aim/twist), and of the remaining two the best |dot| against the forward reference wins, signed toward it. The push follows the joint's actual axis, not the world reference, so UE-convention knees (right local +Y forward, left local −Y forward), Z-forward conventions, and deliberately angled creature knees all place along their authored frame. The forward reference is world +Z in Y-up scenes (+Y in Z-up) — negated for near-straight *horizontal* chains, so a dead-straight T-pose elbow still gets its PV behind the character.
+
+The auto-PV ("magic_pv") bind perpendicular and the straight-chain preferredAngle seed both derive from the same resolved position, so the live graph and the solver always agree with wherever the PV actually built.
 
 ## Plugs and spaces
 
@@ -52,7 +63,7 @@ Two more animatable attributes are added at build time but are not part of `opti
 - `pin` (keyable, 0-1) lives on the PV control — a Schleifer-style elbow/knee pin. At `pin=0` the mid/end joints sit at rest length (or the stretchy-computed length, if `stretchy` is on); as `pin` rises toward 1, the joints blend toward the raw signed distance from shoulder-to-PV and PV-to-wrist, so the elbow/knee locks exactly under the PV control. This attribute exists regardless of the `stretchy` option.
 - The auto pole vector ("magic_pv" in the space enum) tracks the limb's live bend plane so the PV control doesn't need to be re-keyed every pose; it's on by default (`pv_ctrl.space = auto`).
 - Selection sets: `SimpleIK` contains "ik", so every control this component builds lands in `all_ik_ctrls`, plus the appropriate side set (`all_left_ctrls` / `all_right_ctrls` / `all_center_ctrls`) and, if the instance has a `region` set, `<region>[_l|_r]_all` and `<region>[_l|_r]_ik`.
-- Mirroring: `fk_ctrl` and `ik_end_ctrl` both copy rotation verbatim and flip translation (X/Y/Z) across the L/R pair; `pv_ctrl` mirrors the same way (it's placed in world space via perpendicular projection); `master_switch_ctrl` has an empty negate set, so no TRS channel is flipped — only `ik_fk_blend`, a custom attribute swapped verbatim by the mirror dispatcher, actually needs to carry over.
+- Mirroring: `fk_ctrl` and `ik_end_ctrl` both copy rotation verbatim and flip translation (X/Y/Z) across the L/R pair; `pv_ctrl` mirrors the same way (it's placed in world space — see Pole vector placement); `master_switch_ctrl` has an empty negate set, so no TRS channel is flipped — only `ik_fk_blend`, a custom attribute swapped verbatim by the mirror dispatcher, actually needs to carry over.
 
 ## Gotchas
 

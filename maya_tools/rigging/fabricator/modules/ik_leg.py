@@ -154,7 +154,9 @@ IK_LEG_CONTRACT = Contract(
         JointRole('end',   'Ankle joint', descendant_of='mid'),
         JointRole('ball',  'Ball joint',  descendant_of='end'),
     ),
-    extra_guides=(
+    # SimpleIK's pv marker carries forward (declared first — parent guides
+    # must precede children, and pv is parentless), then the foot pivots.
+    extra_guides=SIMPLE_IK_CONTRACT.extra_guides + (
         ExtraGuide(name='heel',     display_name='Heel pivot',
                    description='Floor contact at the back of the foot.',
                    shape='reticle', side_aware=True),
@@ -287,7 +289,9 @@ class IKLegComponent(SimpleIKComponent):
             anchor = ball_pos
             sign = +1  # forward of the ball
         else:
-            raise ValueError(f'Unknown extra guide: {guide_name!r}')
+            # Inherited guides (SimpleIK's 'pv' marker) resolve upstream.
+            return super().resolve_extra_guide_default(
+                guide_name, joints, blueprint)
 
         if z_up:
             return (

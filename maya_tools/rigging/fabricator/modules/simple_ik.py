@@ -26,8 +26,8 @@ import math
 import maya.cmds as cmds
 
 from maya_tools.rigging.fabricator.modules.component import (
-    Action, Component, Contract, JointRole, MirrorRule, OptionField, Plug,
-    SpaceConsumer,
+    Action, Component, Contract, ExtraGuide, JointRole, MirrorRule,
+    OptionField, Plug, SpaceConsumer,
 )
 
 
@@ -69,6 +69,9 @@ SIMPLE_IK_CONTRACT = Contract(
         'pv_shape':          OptionField(type='shape_enum', default='diamond'),
         'pv_distance':       OptionField(type='float', default=0.5,
                                          description='PV distance as fraction of chain length.'),
+        'pv_position':       OptionField(type='vector3', default=None,
+                                         description=('Pole vector worldspace position (set via '
+                                          'the PV guide marker; blank = automatic placement).')),
         'switch_ctrl_shape': OptionField(type='shape_enum', default='ikfk',
                                          description=('Shape for the IK/FK switch ctrl '
                                           '(arms and legs alike). Defaults to the '
@@ -88,6 +91,15 @@ SIMPLE_IK_CONTRACT = Contract(
         JointRole('start', 'Start joint (shoulder/hip)'),
         JointRole('mid',   'Mid joint (elbow/knee)',  descendant_of='start'),
         JointRole('end',   'End joint (wrist/ankle)', descendant_of='mid'),
+    ),
+    extra_guides=(
+        ExtraGuide(name='pv', display_name='Pole vector',
+                   description=('Where the PV control builds. Spawns at the '
+                                'automatic placement; drag it to override — '
+                                'the build then uses the marker position '
+                                'verbatim and the auto-PV graph follows its '
+                                'side.'),
+                   shape='reticle', side_aware=True),
     ),
     space_consumers=(
         SpaceConsumer(
@@ -211,38 +223,126 @@ def _create_chain_duplicate(bind_joints: list, suffix: str, parent: str) -> list
     return created
 
 
+# Bend threshold (degrees, at the mid joint) below which a chain is too
+# straight for its own perpendicular to define the PV direction. The old
+# code normalized the mid joint's deviation off the start->end line no
+# matter how tiny, so on a near-straight game-character leg millimetres of
+# knock-knee modeling noise (lateral component > forward component) became
+# a half-chain-length lateral throw — left leg's PV building in front of
+# the RIGHT leg and vice versa (GitHub issue #32). 15 degrees is far above
+# bind-pose noise and comfortably below any deliberately-authored bend
+# plane (A-pose elbows ~20-40, quad legs 30+): below it, the mid joint's
+# own oriented axes are the trustworthy statement of where the limb folds;
+# above it, the chain's geometry is. (Deliberately larger than
+# STRAIGHT_CHAIN_EPSILON_DEG, which only breaks the RP solver's exact-
+# collinear tie — placement needs protection from noisy-but-nonzero bends,
+# the solver only from degenerate ones.)
+PV_STRAIGHT_EPSILON_DEG = 15.0
+
+# |dot(chain_axis, world_up)| at or above this reads as a vertical, leg-like
+# chain (fallback signs the picked axis toward world-forward: knees fold
+# forward). Below it the chain is horizontal, arm-like (signed backward:
+# a straight T-pose elbow's PV still belongs behind the character).
+PV_VERTICAL_CHAIN_MIN_DOT = 0.6
+
+# Minimum |dot| for the axis pick to count as aligned with the reference;
+# below it (chain running along the forward axis itself, e.g. a straight
+# tail) the pick re-selects against world-up instead.
+PV_AXIS_PICK_MIN_DOT = 0.15
+
+
+def _resolve_pv_dir_from_values(s, m, e, mid_world_matrix=None):
+    """Unit world-space direction from the mid joint toward the PV.
+
+    s/m/e: worldspace positions of the chain joints (any 3-sequences).
+    mid_world_matrix: the mid joint's flat 16-float world matrix, or None
+    when no oriented joint is available (blueprint-only callers).
+    Returns a normalized maya.api.OpenMaya.MVector.
+
+    Genuinely bent chains (>= PV_STRAIGHT_EPSILON_DEG at the mid joint)
+    keep the classic perpendicular projection of the mid joint off the
+    start->end line — the authored bend plane is the answer.
+
+    Near-straight chains ignore that noise-dominated perpendicular and
+    push along the MID JOINT'S OWN local axis that points most forward:
+    of the joint's three world-space axes, the one most aligned with the
+    chain is excluded (the aim/twist axis), and of the remaining two the
+    one with the largest |dot| against the forward reference wins, signed
+    toward it. The push follows the joint's actual axis, not the world
+    reference — so UE-style knees (right local +Y forward, left local -Y
+    forward), Z-forward rigger conventions, and deliberately angled
+    creature knees all place along their authored frame. The forward
+    reference only SELECTS and SIGNS the axis: world +Z in Y-up scenes
+    (+Y in Z-up), negated for horizontal arm-like chains per
+    PV_VERTICAL_CHAIN_MIN_DOT. Without a matrix, the (projected) world
+    reference itself is the direction.
+    """
+    import maya.api.OpenMaya as om
+    sv, mv, ev = om.MVector(*s), om.MVector(*m), om.MVector(*e)
+    v1, v2 = mv - sv, ev - mv
+    se = ev - sv
+
+    if v1.length() > 1e-6 and v2.length() > 1e-6 and se.length() > 1e-6:
+        cos_a = (v1 * v2) / (v1.length() * v2.length())
+        cos_a = max(-1.0, min(1.0, cos_a))
+        if math.degrees(math.acos(cos_a)) >= PV_STRAIGHT_EPSILON_DEG:
+            se_norm = se.normal()
+            arrow = v1 - (v1 * se_norm) * se_norm
+            if arrow.length() > 1e-3:
+                return arrow.normal()
+
+    # Near-straight (or degenerate) chain: oriented-axis fallback.
+    up_is_z = cmds.upAxis(q=True, axis=True) == 'z'
+    up = om.MVector(0, 0, 1) if up_is_z else om.MVector(0, 1, 0)
+    fwd_ref = om.MVector(0, 1, 0) if up_is_z else om.MVector(0, 0, 1)
+    if se.length() > 1e-6:
+        chain_axis = se.normal()
+    elif v1.length() > 1e-6:
+        chain_axis = v1.normal()
+    else:
+        chain_axis = up
+    sign_ref = (fwd_ref if abs(chain_axis * up) >= PV_VERTICAL_CHAIN_MIN_DOT
+                else -fwd_ref)
+
+    if mid_world_matrix is not None:
+        mat = mid_world_matrix
+        axes = [om.MVector(mat[0], mat[1], mat[2]),
+                om.MVector(mat[4], mat[5], mat[6]),
+                om.MVector(mat[8], mat[9], mat[10])]
+        axes = [a.normal() for a in axes if a.length() > 1e-6]
+        if len(axes) == 3:
+            aim_idx = max(range(3), key=lambda i: abs(axes[i] * chain_axis))
+            cands = [a for i, a in enumerate(axes) if i != aim_idx]
+            for ref in (sign_ref, up):
+                best = max(cands, key=lambda a: abs(a * ref))
+                if abs(best * ref) >= PV_AXIS_PICK_MIN_DOT:
+                    return best if (best * ref) >= 0 else -best
+
+    # No usable joint frame — world reference, kept off the chain axis.
+    arrow = sign_ref - (sign_ref * chain_axis) * chain_axis
+    if arrow.length() < 1e-3:
+        arrow = up - (up * chain_axis) * chain_axis
+    return arrow.normal()
+
+
 def _position_pv_at_build(start_joint: str, mid_joint: str, end_joint: str,
                           distance_factor: float) -> tuple:
     """Initial PV position from the bind pose. Returns a (x, y, z) tuple.
 
-    Perpendicular projection from elbow onto shoulder→wrist line, scaled
-    by chain length. Falls back to a per-side world axis on fully-straight
-    chains where the perpendicular collapses.
+    Direction from _resolve_pv_dir_from_values (perpendicular projection
+    for genuinely bent chains; the mid joint's own forward axis for
+    near-straight ones — see its docstring), scaled by chain length *
+    distance_factor from the mid joint.
     """
     import maya.api.OpenMaya as om
     s = cmds.xform(start_joint, q=True, ws=True, t=True)
     m = cmds.xform(mid_joint,   q=True, ws=True, t=True)
     e = cmds.xform(end_joint,   q=True, ws=True, t=True)
+    mid_mat = cmds.xform(mid_joint, q=True, ws=True, matrix=True)
     sv, mv, ev = om.MVector(*s), om.MVector(*m), om.MVector(*e)
     chain_len = (mv - sv).length() + (ev - mv).length()
-    se = ev - sv
-    sm = mv - sv
-    se_len = se.length()
-    if se_len < 1e-6:
-        # Folded chain — pick a default direction
-        arrow = om.MVector(0, 0, -1)
-    else:
-        se_norm = se / se_len
-        arrow = sm - (sm * se_norm) * se_norm
-    if arrow.length() < 1e-3:
-        # Straight chain — use cross-product fallback
-        normal = se ^ sm
-        if normal.length() < 1e-3:
-            arrow = om.MVector(0, 0, -1)  # arm default; flip per-side later
-        else:
-            arrow = (normal ^ se).normal()
-    arrow = arrow.normal() * (chain_len * distance_factor)
-    final = mv + arrow
+    arrow = _resolve_pv_dir_from_values(s, m, e, mid_mat)
+    final = mv + arrow * (chain_len * distance_factor)
     return (final.x, final.y, final.z)
 
 
@@ -524,6 +624,41 @@ class SimpleIKComponent(Component):
         return seed
 
     @classmethod
+    def resolve_extra_guide_default(cls, guide_name, joints, blueprint):
+        """Default spawn position for the 'pv' marker guide: the automatic
+        PV placement (shared direction logic, chain_len * pv_distance from
+        the mid joint). Positions come from the blueprint when the joints
+        aren't in the scene yet; the mid joint's oriented frame is only
+        readable from a live scene joint, so the blueprint-only path falls
+        back to the world-reference direction — the marker is a starting
+        guess the rigger can drag, and Build Rig recomputes the full
+        axis-aware placement whenever no captured pv_position exists.
+
+        Subclasses with extra guides of their own (IKLeg's heel/toe_tip)
+        delegate unknown names here; joints beyond the first three (IKLeg's
+        ball) are ignored."""
+        if guide_name != 'pv':
+            return super().resolve_extra_guide_default(
+                guide_name, joints, blueprint)
+        from maya_tools.rigging.fabricator.fs_app import _bp_world_translate
+        import maya.api.OpenMaya as om
+
+        s_j, m_j, e_j = joints[0], joints[1], joints[2]
+        s = _bp_world_translate(s_j, blueprint)
+        m = _bp_world_translate(m_j, blueprint)
+        e = _bp_world_translate(e_j, blueprint)
+        mid_mat = None
+        if cmds.objExists(m_j):
+            mid_mat = cmds.xform(m_j, q=True, ws=True, matrix=True)
+
+        sv, mv, ev = om.MVector(*s), om.MVector(*m), om.MVector(*e)
+        chain_len = (mv - sv).length() + (ev - mv).length()
+        pv_distance = cls.CONTRACT.options_schema['pv_distance'].default
+        arrow = _resolve_pv_dir_from_values(s, m, e, mid_mat)
+        final = mv + arrow * (chain_len * float(pv_distance))
+        return (final.x, final.y, final.z)
+
+    @classmethod
     def can_apply(cls, joints, blueprint) -> tuple:
         """Override: SimpleIK validates that the 3 user-selected joints form
         a direct parent chain in the blueprint. Selection order doesn't
@@ -641,27 +776,41 @@ class SimpleIKComponent(Component):
         # genuinely bent chain's preferredAngle is left exactly as auto-spa
         # wrote it.
 
-        # Capture bind-pose perpendicular for auto-PV graph (Phase 1.5c).
-        # This is the static "elbow points away from chain" direction at bind,
-        # used by _build_auto_pv_dg to keep the PV tracking the limb's bend
-        # plane as the chain animates.
+        # Resolve the PV build position ONCE — the pv_position marker
+        # (ExtraGuide, captured into options) wins verbatim when present;
+        # otherwise the shared direction logic in _position_pv_at_build.
+        # The bind-pose perpendicular for the auto-PV graph (Phase 1.5c) is
+        # then derived FROM that resolved position, so placement, the live
+        # magic_pv graph, and the straight-chain preferredAngle seed (which
+        # reads the placed PV ctrl) always agree — including following a
+        # hand-dragged marker onto the other side of the limb (digitigrade
+        # backward-bending knees).
         import maya.api.OpenMaya as om
         s = cmds.xform(start, q=True, ws=True, t=True)
         m = cmds.xform(mid,   q=True, ws=True, t=True)
         e = cmds.xform(end,   q=True, ws=True, t=True)
         sv, mv, ev = om.MVector(*s), om.MVector(*m), om.MVector(*e)
-        se = ev - sv
-        sm = mv - sv
-        se_len = se.length()
-        if se_len > 1e-6:
-            se_norm = se / se_len
-            arrow = sm - (sm * se_norm) * se_norm
-            if arrow.length() < 1e-3:
-                arrow = om.MVector(0, 0, -1)
-            else:
-                arrow = arrow.normal()
+        _pv_distance = float(instance.options.get('pv_distance', 0.5))
+        _pv_override = instance.options.get('pv_position')
+        if _pv_override and len(_pv_override) == 3:
+            instance._pv_build_pos = tuple(float(c) for c in _pv_override)
         else:
-            arrow = om.MVector(0, 0, -1)
+            instance._pv_build_pos = _position_pv_at_build(
+                start, mid, end, _pv_distance)
+        se = ev - sv
+        pv_vec = om.MVector(*instance._pv_build_pos) - mv
+        if se.length() > 1e-6:
+            se_norm = se.normal()
+            arrow = pv_vec - (pv_vec * se_norm) * se_norm
+        else:
+            arrow = pv_vec
+        if arrow.length() < 1e-3:
+            # Marker dropped ON the chain axis — fall back to the resolved
+            # auto direction rather than a degenerate perpendicular.
+            mid_mat = cmds.xform(mid, q=True, ws=True, matrix=True)
+            arrow = _resolve_pv_dir_from_values(s, m, e, mid_mat)
+        else:
+            arrow = arrow.normal()
         instance._bind_perp_vec = (arrow.x, arrow.y, arrow.z)
         # Bind-pose limb length for auto-PV's static perpendicular distance.
         # Live distance would collapse the PV onto the limb axis as the chain
@@ -795,8 +944,9 @@ class SimpleIKComponent(Component):
         _apply_or_scale(ik_end_ctrl, end)
         _tag_ctrl(ik_end_ctrl, 'ik_end_ctrl', joint_index=2)
 
-        # PV ctrl at perpendicular projection — same world-anchored pattern.
-        pv_pos = _position_pv_at_build(start, mid, end, pv_distance)
+        # PV ctrl at the position resolved above (marker override or shared
+        # direction logic) — same world-anchored pattern.
+        pv_pos = instance._pv_build_pos
         pv_ctrl = com.build_shape(pv_shape, f'{short_mid}_PV_ctrl',
                                   radius=cmds.getAttr(f'{mid}.radius'))
         cmds.parent(pv_ctrl, ik_grp)
