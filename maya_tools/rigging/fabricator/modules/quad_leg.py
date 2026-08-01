@@ -130,7 +130,7 @@ QUAD_LEG_CONTRACT = Contract(
                                 'automatic placement; drag it to override — '
                                 'the build then uses the marker position '
                                 'verbatim.'),
-                   shape='reticle', side_aware=True),
+                   shape='locator', side_aware=True),
     ),
     joint_roles=(
         JointRole('upper_leg', 'Upper leg (hip / shoulder)'),

@@ -43,7 +43,7 @@ Pulled from `IK_LEG_CONTRACT.options_schema` in `modules/ik_leg.py`, which sprea
 - Outputs (inherited from SimpleIK): `start_out`, `mid_out`, `end_out` (BIND thigh/knee/ankle world matrices), `ik_ctrl_out` (foot ctrl world matrix), `anchor_out` (cycle-free parent anchor used internally by the PV and foot ctrls).
 - Output (new in IKLeg): `ball_out` (matrix, `space_target=True`) — BIND ball joint world matrix, so downstream components can wire a `parent_in` to the ball.
 - `space_consumers` are inherited unchanged from SimpleIK: `pv_ctrl` gets a `space` enum (defaults `auto`, `world`, `<id>.ik_ctrl_out`, `<id>.anchor_out`; default `auto`) and the foot ctrl (`ik_end_ctrl` role) gets a `space` enum (defaults `root`, `world`, `<id>.anchor_out`; default `root`). Heel, toe, and ball ctrls have no space-switching attribute.
-- `extra_guides`: SimpleIK's `pv` marker (captured into `pv_position` — see SimpleIK's "Pole vector placement") carries forward, plus `heel` and `toe_tip`, all reticle-shaped, side-aware. The foot pivots' captured positions feed the `heel_position` / `toe_tip_position` options above.
+- `extra_guides`: SimpleIK's `pv` marker (a 3D locator cross, captured into `pv_position` — see SimpleIK's "Pole vector placement") carries forward, plus the reticle-shaped `heel` and `toe_tip`; all side-aware. The foot pivots' captured positions feed the `heel_position` / `toe_tip_position` options above.
 - Joint roles: `start` (hip), `mid` (knee, descendant of start), `end` (ankle, descendant of mid), `ball` (descendant of end).
 
 ## Animator features

@@ -99,7 +99,7 @@ SIMPLE_IK_CONTRACT = Contract(
                                 'the build then uses the marker position '
                                 'verbatim and the auto-PV graph follows its '
                                 'side.'),
-                   shape='reticle', side_aware=True),
+                   shape='locator', side_aware=True),
     ),
     space_consumers=(
         SpaceConsumer(
