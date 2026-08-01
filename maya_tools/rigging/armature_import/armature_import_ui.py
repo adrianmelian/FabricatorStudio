@@ -50,7 +50,7 @@ class ArmatureImportWindow(QtWidgets.QDialog):
         # ── brand bar: the Armature banner (AutoSkin's pattern) ──
         # The text brand returns if the PNG is ever missing, so a lost asset
         # costs a nice header, not a window.
-        from maya_tools.framework.toolbar import icon_button
+        from maya_tools.framework.toolbar.widgets import icon_button
         brand_row = QtWidgets.QHBoxLayout()
         brand_row.setSpacing(10)
         _banner = QtGui.QPixmap(str(icon_button._ICON_DIR / 'fs_armature.png'))
