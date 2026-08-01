@@ -1,6 +1,6 @@
 {
   "_readme": [
-    "SHIP MANIFEST — the last line of defense before anything is packaged.",
+    "SHIP MANIFEST \u2014 the last line of defense before anything is packaged.",
     "Adrian reviews this file before every cut. Two sections:",
     "",
     "rules: prefix rules over maya_tools/ paths. Anything matching a",
@@ -11,7 +11,7 @@
     "known_dirs: the roll-call. Every directory (top level and one level",
     "  down) under maya_tools/ that contains files must be listed here.",
     "  package_release FAILS LOUDLY if a directory exists on disk that",
-    "  this list does not acknowledge — a new tool cannot slip into the",
+    "  this list does not acknowledge \u2014 a new tool cannot slip into the",
     "  zip without being ruled here first.",
     "",
     "This manifest governs DIRECTORIES. File-level excludes",
@@ -75,6 +75,7 @@
     "pipeline",
     "pipeline/rigged_model_updater",
     "rigging",
+    "rigging/armature_import",
     "rigging/curve_o_matic",
     "rigging/fabricator",
     "rigging/joint_orient",
