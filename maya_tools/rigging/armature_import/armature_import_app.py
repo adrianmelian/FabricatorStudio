@@ -162,6 +162,22 @@ def import_armature(usd_path, advanced=False, blueprint_path=None, load=True,
         path = _write_blueprint(source, classification, blueprint_path, report, log)
         report.blueprint_path = path
 
+        # Posed verification, HERE and not later, because this is the only moment it
+        # can run: the skeleton is imported and skinned but the blueprint is not yet
+        # loaded, so nothing is driven. The moment fs_app.load() stands the Armature up,
+        # every aim edge is solved by a single-chain IK and no joint answers a direct
+        # rotation (measured: 37 phantom failures). Advisory only — findings are logged
+        # and reported, never a refusal; every probe restores what it touched.
+        try:
+            from maya_tools.rigging.armature_import import orientation_check
+            findings, summary = orientation_check.run(
+                log=log, blueprint=source.blueprint)
+            for line in summary:
+                log(line)
+            report.notes.extend(str(f) for f in findings)
+        except Exception as exc:
+            log('posed verification could not run: %s' % exc)
+
     if load:
         _load_blueprint(path, rig_name or source.name, log)
 

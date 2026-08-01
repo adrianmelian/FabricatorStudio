@@ -7,6 +7,36 @@ Format: `## [date] - short title` then bullet points. Keep entries brief.
 
 ---
 
+## [2026-08-01] - v1.2.0: Armature import, and pole vectors that land where knees point
+
+- **Turn an Armature export into a Fabricator rig.** The new Armature button on
+  the toolbar reads the USD you exported from Armature and stands the character
+  up in your scene: mesh, skeleton and skin weights straight from the file,
+  nothing rebuilt, no weights transferred. The import writes a Fabricator
+  blueprint from the rig Armature embedded, assigns components (Simple, or
+  Advanced when the Ribbon Pack is installed), applies your authored aimers,
+  names the rig, and leaves Build Rig as the next click.
+- **Imported rigs are verified by posing, not by looking.** A joint frame
+  rolled off its bone reads perfectly at bind and twists the moment anything
+  rotates. After import, drivers are posed and the resulting motion is
+  measured, so a rolled frame or a skin that stopped deforming is reported in
+  the log before you build on it.
+- **Refusals name their reason.** A USD from another tool, a scene that is not
+  empty, a file from a newer Armature: each stops before touching anything and
+  says what to do instead. Full details on the tool's doc page.
+- **Leg pole vectors build in front of the knee.** On many characters the left
+  leg's PV control landed in front of the right leg and vice versa: a
+  near-straight leg let millimetres of bind-pose noise pick the direction.
+  Placement now follows the knee joint's own forward axis, which also respects
+  Y-forward and Z-forward conventions and deliberately angled creature knees.
+  Simple IK, IK Leg, Quad Leg and both ribbon limbs share the fix. (#32)
+- **A pole vector marker in edit mode.** Every IK limb spawns a locator cross
+  where its PV control will build. Leave it and placement is automatic; drag it
+  and the control builds exactly there, including behind the knee for a
+  digitigrade leg. The auto PV space and the solver follow the marker.
+
+---
+
 ## [2026-07-28] - v1.1.3: control shapes keep their IK/FK visibility
 
 - **Changing a control's curve shape no longer breaks the IK/FK switch.**
