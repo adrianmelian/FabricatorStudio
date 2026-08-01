@@ -101,7 +101,7 @@ def registered_types():
 # ── the pipeline ─────────────────────────────────────────────────────────────
 
 def import_armature(usd_path, advanced=False, blueprint_path=None, load=True,
-                    log=None):
+                    log=None, rig_name=None):
     """Import an Armature USD export and build the Fabricator blueprint around it.
 
     Args:
@@ -110,6 +110,8 @@ def import_armature(usd_path, advanced=False, blueprint_path=None, load=True,
         blueprint_path: where to write the .blueprint.yaml. Defaults to beside the USD.
         load:           run fs_app.load() at the end (set False for pure-import tests).
         log:            callable(str) for progress.
+        rig_name:       rig label for the FS window's Rig Name field. Defaults to the
+                        export's character name; the UI exposes it as an editable field.
 
     Returns ImportReport. Raises ArmatureImportError for every refusal, having left the
     scene as it found it.
@@ -161,7 +163,7 @@ def import_armature(usd_path, advanced=False, blueprint_path=None, load=True,
         report.blueprint_path = path
 
     if load:
-        _load_blueprint(path, source.name, log)
+        _load_blueprint(path, rig_name or source.name, log)
 
     for line in report.as_lines():
         log(line)
@@ -510,4 +512,19 @@ def _load_blueprint(path, character_name, log):
     if character_name and nodes.get_registry():
         nodes.set_rig_label(character_name)
         log('  rig named "%s"' % character_name)
+
+    # An open FS window keeps displaying its pre-load read (name field included) until
+    # it is reopened — the window's OWN load action ends with _force_reopen() for
+    # exactly this reason, and calling fs_app.load() directly skips that step. That is
+    # why the rig name "didn't auto-fill" even though the registry held it (Adrian,
+    # 2026-07-31). Poke only a window that already exists: sys.modules, not an import,
+    # so headless runs never pull Qt in.
+    import sys as _sys
+    fs_window = _sys.modules.get('maya_tools.rigging.fabricator.ui.fs_window')
+    if fs_window is not None and getattr(fs_window, '_win', None) is not None:
+        try:
+            fs_window.FSWindow._force_reopen()
+            log('  refreshed the open Fabricator window')
+        except Exception as exc:                       # a stale window must never
+            log('  window refresh failed: %s' % exc)   # fail the import itself
     log('  loaded')

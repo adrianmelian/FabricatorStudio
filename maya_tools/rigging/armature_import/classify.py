@@ -292,7 +292,22 @@ def classify(source, advanced=False, available_types=None, axis_convert=None):
         region = joint.region
 
         # ── Rule 2: pelvis ───────────────────────────────────────────────────
+        # THE PELVIS HEADS THE SPINE (Adrian, 2026-07-31): spine_01 is merely
+        # the first joint NAMED spine; the chain's real start is the pelvis.
+        # Advanced_Biped.blueprint.yaml agrees — its `pelvis_ribbon_spine` is a
+        # RibbonSpine over [pelvis, spine_01..spine_04]. So in Advanced the
+        # ribbon spans pelvis + spine chain; in Simple the pelvis keeps its own
+        # FK exactly as Simple_Biped ships (the parent-plug chain still makes
+        # it the head: pelvis_fk -> spine_01_fk -> ...).
         if region == 'pelvis':
+            spine_kids = [c for c in driver_children(joint) if c.region == 'spine']
+            if advanced and len(spine_kids) == 1:
+                chain = [joint] + _region_chain(spine_kids[0], {'spine'})
+                if len(chain) >= RIBBON_SPINE_MIN:
+                    comp_type = pick('RibbonSpine', '')
+                    if comp_type == 'RibbonSpine':
+                        emit(joint, comp_type, chain, region='spine')
+                        return
             emit(joint, 'SimpleFK', [joint], region='spine')
             return
 
@@ -390,18 +405,17 @@ def classify(source, advanced=False, available_types=None, axis_convert=None):
     return result
 
 
-# Output plug to use when parenting UNDER a component of a given type.
-_PARENT_PLUG_BY_TYPE = {
-    'RibbonSpine': 'tip_out',
-    'World': 'ctrl_out',
-}
-
-
 def _resolve_parent_plugs(result, by_name):
     """Wire each component's parent_plug from the joint hierarchy.
 
     A component parents under whichever component owns the nearest ancestor joint that
     is not one of its own members. Mirrors what both shipped biped templates do.
+
+    A RibbonSpine owner has two ends and the choice matters: Advanced_Biped hangs the
+    legs off `start_out` (the pelvis end) and everything above the chain off `tip_out`.
+    Which end applies falls out of WHICH member joint the child descends from — the
+    ribbon's first member means start_out, anything later means tip_out. Every other
+    multi-output type in use parents through `ctrl_out`.
     """
     comp_by_id = {c['id']: c for c in result.components}
 
@@ -423,9 +437,12 @@ def _resolve_parent_plugs(result, by_name):
             owner_id = None
             ancestor = by_name.get(ancestor.parent) if ancestor.parent else None
 
-        if not owner_id:
+        if not owner_id or ancestor is None:
             continue
 
         owner = comp_by_id.get(owner_id)
-        plug = _PARENT_PLUG_BY_TYPE.get(owner['type'] if owner else '', 'ctrl_out')
+        if owner and owner['type'] == 'RibbonSpine':
+            plug = 'start_out' if ancestor.name == owner['joints'][0] else 'tip_out'
+        else:
+            plug = 'ctrl_out'
         comp['parent_plug'] = '%s.%s' % (owner_id, plug)

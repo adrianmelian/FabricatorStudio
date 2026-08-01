@@ -11,7 +11,7 @@ __author__ = "Adrian Melian"
 import os
 import traceback
 
-from PySide6 import QtWidgets, QtCore
+from PySide6 import QtWidgets, QtCore, QtGui
 
 from maya_tools.rigging.armature_import import armature_import_app as app
 from maya_tools.utils.maya.gui import get_maya_window
@@ -47,6 +47,24 @@ class ArmatureImportWindow(QtWidgets.QDialog):
         main_layout.setSpacing(10)
         main_layout.setContentsMargins(14, 14, 14, 12)
 
+        # ── brand bar: the Armature banner (AutoSkin's pattern) ──
+        # The text brand returns if the PNG is ever missing, so a lost asset
+        # costs a nice header, not a window.
+        from maya_tools.framework.toolbar import icon_button
+        brand_row = QtWidgets.QHBoxLayout()
+        brand_row.setSpacing(10)
+        _banner = QtGui.QPixmap(str(icon_button._ICON_DIR / 'fs_armature.png'))
+        if not _banner.isNull():
+            title = QtWidgets.QLabel()
+            title.setPixmap(_banner.scaledToHeight(
+                40, QtCore.Qt.TransformationMode.SmoothTransformation))
+        else:
+            title = mindmeld_style.brand_label('Armature Import')
+        brand_row.addWidget(title)
+        brand_row.addStretch()
+        main_layout.addLayout(brand_row)
+        main_layout.addWidget(mindmeld_style.horizontal_rule())
+
         # ── file row ──
         file_row = QtWidgets.QHBoxLayout()
         self.path_field = QtWidgets.QLineEdit()
@@ -56,6 +74,16 @@ class ArmatureImportWindow(QtWidgets.QDialog):
         file_row.addWidget(self.path_field)
         file_row.addWidget(self.browse_btn)
         main_layout.addLayout(file_row)
+
+        # ── rig name row: auto-filled from the file, overrideable ──
+        # (Adrian, 2026-07-31: name the rig here, not in a post-import scramble.)
+        name_row = QtWidgets.QHBoxLayout()
+        name_row.addWidget(mindmeld_style.field_label('Rig Name:'))
+        self.name_field = QtWidgets.QLineEdit()
+        self.name_field.setPlaceholderText('auto-filled from the file')
+        name_row.addWidget(self.name_field, stretch=1)
+        main_layout.addLayout(name_row)
+        self._auto_name = ''      # last auto-fill; a user edit is never overwritten
 
         # ── component tier ──
         tier_box = QtWidgets.QGroupBox('Components')
@@ -90,6 +118,22 @@ class ArmatureImportWindow(QtWidgets.QDialog):
     def connect_signals(self):
         self.browse_btn.clicked.connect(self._on_browse)
         self.import_btn.clicked.connect(self._on_import)
+        self.path_field.editingFinished.connect(self._sync_auto_name)
+
+    def _sync_auto_name(self):
+        """Fill the name from the file stem, without stomping a user's own edit.
+
+        The rule: overwrite only when the field is empty or still holds the previous
+        auto-fill. Once the user types anything else, their name wins for the session.
+        """
+        path = self.path_field.text().strip()
+        if not path:
+            return
+        stem = os.path.splitext(os.path.basename(path))[0]
+        current = self.name_field.text().strip()
+        if not current or current == self._auto_name:
+            self.name_field.setText(stem)
+            self._auto_name = stem
 
     def populate(self):
         """Offer Advanced only when the ribbon types are actually registered.
@@ -119,6 +163,7 @@ class ArmatureImportWindow(QtWidgets.QDialog):
             'USD (*.usd *.usdc *.usda)')
         if path:
             self.path_field.setText(path)
+            self._sync_auto_name()
             self.status_label.setText('Ready to import %s' % os.path.basename(path))
 
     def _on_import(self):
@@ -135,6 +180,7 @@ class ArmatureImportWindow(QtWidgets.QDialog):
             report = app.import_armature(
                 path,
                 advanced=self.advanced_radio.isChecked(),
+                rig_name=self.name_field.text().strip() or None,
                 log=self.logger.info,
             )
         except Exception as e:
