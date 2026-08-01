@@ -16,10 +16,11 @@ import maya.cmds as cmds
 
 from maya_tools.rigging.fabricator import nodes as ks_nodes
 from maya_tools.rigging.fabricator.modules.component import (
-    Component, Contract, Plug, OptionField, JointRole, SpaceConsumer, Action,
+    Component, Contract, ExtraGuide, Plug, OptionField, JointRole,
+    SpaceConsumer, Action,
 )
 from maya_tools.rigging.fabricator.modules.simple_ik import (
-    _position_pv_at_build,
+    _default_pv_marker_pos, _position_pv_at_build,
 )
 from maya_tools.rigging.fabricator.modules.world import _apply_color
 from maya_tools.utils.maya import network_nodes as nn
@@ -117,9 +118,20 @@ QUAD_LEG_CONTRACT = Contract(
                                           description=('Classic stretchy IK on the spring chain '
                                                        '(distanceBetween upper_leg to spring '
                                                        'handle vs rest length, clamped at 1.0).')),
+        'pv_position':       OptionField(type='vector3', default=None,
+                                          description=('Pole vector worldspace position (set via '
+                                           'the PV guide marker; blank = automatic placement).')),
     },
     side_supported=True,
     color='#D9540D',  # rust — IK family, deepest
+    extra_guides=(
+        ExtraGuide(name='pv', display_name='Pole vector',
+                   description=('Where the PV control builds. Spawns at the '
+                                'automatic placement; drag it to override — '
+                                'the build then uses the marker position '
+                                'verbatim.'),
+                   shape='reticle', side_aware=True),
+    ),
     joint_roles=(
         JointRole('upper_leg', 'Upper leg (hip / shoulder)'),
         JointRole('knee',      'Knee',                 descendant_of='upper_leg'),
@@ -197,6 +209,19 @@ class QuadLegComponent(Component):
                     f'a parent chain (upper_leg, knee, ankle, toe, toe_end).'
                 )
         return True, ''
+
+    @classmethod
+    def resolve_extra_guide_default(cls, guide_name, joints, blueprint):
+        """Default spawn position for the 'pv' marker guide. QuadLeg's
+        placement projects the knee onto the upper_leg->TOE line (not the
+        ankle — matches build()'s _position_pv_at_build call), so the
+        marker default uses joints[0]/[1]/[3]. pv_distance matches the
+        0.5 fraction hardcoded in build()."""
+        if guide_name != 'pv':
+            return super().resolve_extra_guide_default(
+                guide_name, joints, blueprint)
+        return _default_pv_marker_pos(
+            joints[0], joints[1], joints[3], blueprint, 0.5)
 
     @classmethod
     def build(cls, instance, context) -> None:
@@ -553,12 +578,21 @@ class QuadLegComponent(Component):
         # points forward, so the PV ctrl lands IN FRONT of the knee
         # (opposite convention to biped arms, where PV goes behind the
         # elbow). _position_pv_at_build handles the projection + chain-
-        # length scaling; falls back to (0, 0, -1) for fully-straight chains.
+        # length scaling; near-straight chains fall back to the knee's own
+        # most-forward local axis (see _resolve_pv_dir_from_values).
         pv_shape = opts.get('pv_shape', 'diamond')
         short_knee = knee.split('|')[-1].split(':')[-1]
         pv_distance = 0.5  # fraction of chain length
 
-        pv_pos = _position_pv_at_build(upper, knee, toe, pv_distance)
+        # pv_position marker (ExtraGuide, captured into options) wins
+        # verbatim; otherwise automatic placement. QuadLeg has no auto-PV
+        # graph (deferred with space switching), so the marker position IS
+        # the built position.
+        pv_override = opts.get('pv_position')
+        if pv_override and len(pv_override) == 3:
+            pv_pos = tuple(float(c) for c in pv_override)
+        else:
+            pv_pos = _position_pv_at_build(upper, knee, toe, pv_distance)
         pv_ctrl = com.build_shape(pv_shape, f'{short_knee}_PV_ctrl',
                                   radius=cmds.getAttr(f'{knee}.radius'))
         cmds.parent(pv_ctrl, instance._controls_grp)

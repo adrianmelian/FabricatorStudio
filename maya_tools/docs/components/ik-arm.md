@@ -29,6 +29,7 @@ Pulled from `IK_ARM_CONTRACT.options_schema` in `modules/ik_arm.py`, which sprea
 | `ctrl_color` | `amber` | **Overridden from SimpleIK.** IK-family color (all IKs are orange shades). Applies to the FK/IK/PV/switch ctrls, and is the default source for the fist-curl master's color. |
 | `pv_shape` | `diamond` | Inherited. Shape for the pole-vector ctrl. |
 | `pv_distance` | `0.5` | Inherited. PV distance as a fraction of chain length. |
+| `pv_position` | (unset) | Inherited. Pole vector worldspace position, captured from the **Pole vector marker guide** (`pv` extra guide). Drag the marker to override the automatic placement — handy when an elbow's PV builds somewhere you don't want it. See SimpleIK's "Pole vector placement". |
 | `switch_ctrl_shape` | `cog` | Inherited. Shape for the IK/FK switch ctrl. |
 | `stretchy` | `False` | Inherited. Classic stretchy IK on the arm segment (stretch, no squash; IK mode only). |
 | `channels` | keyable: tx, ty, tz, rx, ry, rz | Inherited. Applies to the FK ctrls; the IK wrist ctrl always gets full translate+rotate keyable regardless. |

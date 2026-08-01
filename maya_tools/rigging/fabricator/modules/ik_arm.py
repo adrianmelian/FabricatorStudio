@@ -71,6 +71,7 @@ IK_ARM_CONTRACT = Contract(
         JointRole('mid', 'Elbow joint', descendant_of='start'),
         JointRole('end', 'Wrist joint', descendant_of='mid'),
     ),
+    extra_guides=SIMPLE_IK_CONTRACT.extra_guides,   # pv marker carries forward
     space_consumers=SIMPLE_IK_CONTRACT.space_consumers,
     actions=SIMPLE_IK_CONTRACT.actions,
     mirror_rules=SIMPLE_IK_CONTRACT.mirror_rules,

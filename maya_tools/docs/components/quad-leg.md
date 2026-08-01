@@ -28,6 +28,7 @@ Quadruped fore or hind legs (or any analogous 5-segment limb) where you want IK/
 | `toe_fk_shape` | `sphere` | Toe FK control shape. |
 | `ik_ctrl_shape` | `foot` | Foot (IK end) control shape. |
 | `pv_shape` | `diamond` | Pole vector control shape. |
+| `pv_position` | (unset) | Pole vector worldspace position, captured from the **Pole vector marker guide** (`pv` extra guide, same rails as IKLeg's foot pivots). When set, the build places the PV control exactly here — QuadLeg has no auto-PV graph, so the marker position IS the built position. When unset, placement is automatic: perpendicular projection of the knee off the upper_leg→toe line for a normally-bent quad knee, with SimpleIK's near-straight joint-axis-forward fallback (see SimpleIK's "Pole vector placement"). |
 | `hock_ctrl_shape` | `sphere` | Hock FK control shape. |
 | `switch_ctrl_shape` | `cog` | IK/FK switch control shape. |
 | `ctrl_color` | `yellow` | Control color. Side detection overrides this at build time (blue on `lf`, red on `rt`, yellow on `md`) unless you set `ctrl_color` to something other than `yellow` explicitly, in which case your value wins. |

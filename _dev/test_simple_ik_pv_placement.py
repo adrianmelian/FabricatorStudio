@@ -298,6 +298,67 @@ def test_pv_position_option_overrides_auto_placement():
     fs_app.unbuild_modules()
 
 
+def test_pv_marker_guide_declared_across_ik_family():
+    """Every IK-family contract must declare the 'pv' extra guide AND the
+    pv_position option it captures into — a fresh Contract() that forgets
+    the carry-over silently loses the marker (extra_guides defaults to
+    an empty tuple)."""
+    from maya_tools.rigging.fabricator.modules.simple_ik import SIMPLE_IK_CONTRACT
+    from maya_tools.rigging.fabricator.modules.ik_arm import IK_ARM_CONTRACT
+    from maya_tools.rigging.fabricator.modules.ik_leg import IK_LEG_CONTRACT
+    from maya_tools.rigging.fabricator.modules.ribbon_ik_arm import RIBBON_IK_ARM_CONTRACT
+    from maya_tools.rigging.fabricator.modules.ribbon_ik_leg import RIBBON_IK_LEG_CONTRACT
+    from maya_tools.rigging.fabricator.modules.quad_leg import QUAD_LEG_CONTRACT
+
+    for c in (SIMPLE_IK_CONTRACT, IK_ARM_CONTRACT, IK_LEG_CONTRACT,
+              RIBBON_IK_ARM_CONTRACT, RIBBON_IK_LEG_CONTRACT,
+              QUAD_LEG_CONTRACT):
+        names = [eg.name for eg in c.extra_guides]
+        assert 'pv' in names, f'{c.type}: pv marker guide missing ({names})'
+        assert 'pv_position' in c.options_schema, (
+            f'{c.type}: pv_position option missing')
+
+
+def test_quad_leg_pv_position_option_overrides_placement():
+    """QuadLeg consumes pv_position too. Unlike SimpleIK there is no
+    auto-PV graph (deferred with space switching), so the built PV ctrl
+    must sit at the override VERBATIM. Override goes behind the leg —
+    a side the automatic forward-bent-quad-knee projection would never
+    choose, so this cannot pass unless the option is consumed."""
+    import maya.cmds as cmds
+    from maya_tools.rigging.fabricator import fs_app, nodes
+
+    cmds.file(new=True, force=True)
+    cmds.select(clear=True)
+    root = cmds.joint(p=(0, 62, 0), name='quadovr_root')
+    upper = cmds.joint(p=(10, 60, 0), name='quadovr_upper')
+    knee = cmds.joint(p=(10, 38, 6), name='quadovr_knee')
+    ankle = cmds.joint(p=(10, 16, -4), name='quadovr_ankle')
+    toe = cmds.joint(p=(10, 3, 5), name='quadovr_toe')
+    toe_end = cmds.joint(p=(10, 3, 13), name='quadovr_toe_end')
+    cmds.select(clear=True)
+
+    override = (12.0, 40.0, -30.0)  # behind the quad leg
+    nodes.create_registry('quad_pv_bp')
+    _add_world_component('quadovr_world', root)
+    nodes.create_component_node(
+        component_id='quadovr_C0', component_type='QuadLeg',
+        joints=[upper, knee, ankle, toe, toe_end], parent_plug='', side='lf',
+        options={'pv_position': list(override)}, persisted={},
+    )
+    fs_app.build_modules()
+
+    pv_ctrl = f'{knee}_PV_ctrl'
+    assert cmds.objExists(pv_ctrl), f'missing {pv_ctrl}'
+    pv = cmds.xform(pv_ctrl, q=True, ws=True, t=True)
+    for i, (got, want) in enumerate(zip(pv, override)):
+        assert abs(got - want) < 1e-4, (
+            f'quad override ignored on axis {i}: built at {pv}, '
+            f'wanted {override}')
+
+    fs_app.unbuild_modules()
+
+
 def main():
     import maya.standalone
     maya.standalone.initialize(name='python')
@@ -327,6 +388,10 @@ def main():
           test_full_build_near_straight_legs_pv_uncrossed)
     check('test_pv_position_option_overrides_auto_placement',
           test_pv_position_option_overrides_auto_placement)
+    check('test_pv_marker_guide_declared_across_ik_family',
+          test_pv_marker_guide_declared_across_ik_family)
+    check('test_quad_leg_pv_position_option_overrides_placement',
+          test_quad_leg_pv_position_option_overrides_placement)
 
     if FAILURES:
         print(f"SIMPLE IK PV PLACEMENT TESTS: {len(FAILURES)} FAILED")

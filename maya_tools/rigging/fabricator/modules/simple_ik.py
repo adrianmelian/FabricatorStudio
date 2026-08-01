@@ -325,6 +325,33 @@ def _resolve_pv_dir_from_values(s, m, e, mid_world_matrix=None):
     return arrow.normal()
 
 
+def _default_pv_marker_pos(start_j: str, mid_j: str, end_j: str,
+                           blueprint, pv_distance: float) -> tuple:
+    """Default spawn position for a 'pv' marker guide, shared by SimpleIK's
+    family and QuadLeg (which projects onto upper->toe rather than
+    upper->ankle). Positions come from the blueprint when the joints
+    aren't in the scene yet; the mid joint's oriented frame is only
+    readable from a live scene joint, so the blueprint-only path falls
+    back to the world-reference direction — the marker is a starting
+    guess the rigger can drag, and Build Rig recomputes the full
+    axis-aware placement whenever no captured pv_position exists."""
+    from maya_tools.rigging.fabricator.fs_app import _bp_world_translate
+    import maya.api.OpenMaya as om
+
+    s = _bp_world_translate(start_j, blueprint)
+    m = _bp_world_translate(mid_j, blueprint)
+    e = _bp_world_translate(end_j, blueprint)
+    mid_mat = None
+    if cmds.objExists(mid_j):
+        mid_mat = cmds.xform(mid_j, q=True, ws=True, matrix=True)
+
+    sv, mv, ev = om.MVector(*s), om.MVector(*m), om.MVector(*e)
+    chain_len = (mv - sv).length() + (ev - mv).length()
+    arrow = _resolve_pv_dir_from_values(s, m, e, mid_mat)
+    final = mv + arrow * (chain_len * pv_distance)
+    return (final.x, final.y, final.z)
+
+
 def _position_pv_at_build(start_joint: str, mid_joint: str, end_joint: str,
                           distance_factor: float) -> tuple:
     """Initial PV position from the bind pose. Returns a (x, y, z) tuple.
@@ -627,36 +654,15 @@ class SimpleIKComponent(Component):
     def resolve_extra_guide_default(cls, guide_name, joints, blueprint):
         """Default spawn position for the 'pv' marker guide: the automatic
         PV placement (shared direction logic, chain_len * pv_distance from
-        the mid joint). Positions come from the blueprint when the joints
-        aren't in the scene yet; the mid joint's oriented frame is only
-        readable from a live scene joint, so the blueprint-only path falls
-        back to the world-reference direction — the marker is a starting
-        guess the rigger can drag, and Build Rig recomputes the full
-        axis-aware placement whenever no captured pv_position exists.
-
-        Subclasses with extra guides of their own (IKLeg's heel/toe_tip)
-        delegate unknown names here; joints beyond the first three (IKLeg's
-        ball) are ignored."""
+        the mid joint) via _default_pv_marker_pos. Subclasses with extra
+        guides of their own (IKLeg's heel/toe_tip) delegate unknown names
+        here; joints beyond the first three (IKLeg's ball) are ignored."""
         if guide_name != 'pv':
             return super().resolve_extra_guide_default(
                 guide_name, joints, blueprint)
-        from maya_tools.rigging.fabricator.fs_app import _bp_world_translate
-        import maya.api.OpenMaya as om
-
-        s_j, m_j, e_j = joints[0], joints[1], joints[2]
-        s = _bp_world_translate(s_j, blueprint)
-        m = _bp_world_translate(m_j, blueprint)
-        e = _bp_world_translate(e_j, blueprint)
-        mid_mat = None
-        if cmds.objExists(m_j):
-            mid_mat = cmds.xform(m_j, q=True, ws=True, matrix=True)
-
-        sv, mv, ev = om.MVector(*s), om.MVector(*m), om.MVector(*e)
-        chain_len = (mv - sv).length() + (ev - mv).length()
         pv_distance = cls.CONTRACT.options_schema['pv_distance'].default
-        arrow = _resolve_pv_dir_from_values(s, m, e, mid_mat)
-        final = mv + arrow * (chain_len * float(pv_distance))
-        return (final.x, final.y, final.z)
+        return _default_pv_marker_pos(
+            joints[0], joints[1], joints[2], blueprint, float(pv_distance))
 
     @classmethod
     def can_apply(cls, joints, blueprint) -> tuple:
