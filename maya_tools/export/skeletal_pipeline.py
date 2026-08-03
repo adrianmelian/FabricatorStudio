@@ -58,7 +58,11 @@ def run_export(joints: list, meshes: list, out_path: str,
 
     mayapy = anim_pipeline._find_mayapy()
     runner = str(Path(__file__).parent / 'skeletal_export_runner.py')
-    repo_python_root = str(Path(__file__).parent.parent)
+    # The FS repo root (the directory CONTAINING maya_tools) — one level was
+    # missing here since the runner was written, silently rescued by
+    # userSetup.py putting the root on sys.path. With userSetup skipped
+    # (below) the child depends on this being right.
+    repo_python_root = str(Path(__file__).parent.parent.parent)
 
     payload = json.dumps({
         'scene_path': scene,
@@ -72,10 +76,20 @@ def run_export(joints: list, meshes: list, out_path: str,
         'repo_python_root': repo_python_root,
     })
 
+    # The child must NOT run userSetup.py: the FS startup restores the
+    # toolbar, which imports PySide6 into a batch process. Field-crashed
+    # 2026-08-03 on a USD export — Qt loaded next to pxr took the child
+    # down with a GIL fatal at interpreter shutdown, and it adds ~10s of
+    # toolbar/menu load to every export. The runner sets up its own
+    # sys.path and plugins; nothing in userSetup is needed here.
+    env = dict(os.environ)
+    env['MAYA_SKIP_USERSETUP_PY'] = '1'
+
     result = subprocess.run(
         [mayapy, runner, payload],
         capture_output=True,
         text=True,
+        env=env,
         timeout=600,  # 10 min max — teardown/orient on a heavy rig can be slow
     )
 

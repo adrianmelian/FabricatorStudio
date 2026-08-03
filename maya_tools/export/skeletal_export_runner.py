@@ -301,9 +301,20 @@ def _worst_bind_delta() -> float:
 
 
 if __name__ == '__main__':
+    # os._exit, not sys.exit: this is a single-shot throwaway process whose
+    # only outputs are the exit code and the file on disk. Normal interpreter
+    # finalization can crash AFTER the work is done (field-crashed 2026-08-03:
+    # "PyThreadState_Get ... runtime state: finalizing" with pxr stages alive
+    # at teardown), turning a successful export into returncode!=0. Flush,
+    # then leave without finalizing.
+    import os as _os
     try:
         main()
     except Exception:
         traceback.print_exc()
-        sys.exit(1)
-    sys.exit(0)
+        sys.stdout.flush()
+        sys.stderr.flush()
+        _os._exit(1)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    _os._exit(0)
