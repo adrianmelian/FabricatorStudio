@@ -7,6 +7,19 @@ Format: `## [date] - short title` then bullet points. Keep entries brief.
 
 ---
 
+## [Unreleased]
+
+- **USD export: one file for Armature and Unreal.** The Rig Exporter's Export
+  Options gains a Format choice: FBX (default) or USD. USD writes a single
+  UsdSkel delivery file per skeletal entry — mesh, skeleton, top-4 normalized
+  weights, UsdPreviewSurface materials with textures beside the file. A
+  Fabricator rig also embeds its module layout and blueprint, so Armature
+  ingests it as named modules, not loose joints; Unreal's USD importer reads
+  the same file. The export verifies its own output byte-for-byte before
+  shipping (root frame, weights, joint names, embeds) and refuses with the
+  reason named rather than writing a plausible-looking corpse. Root frames
+  are normalized to identity world-preservingly; the character never moves.
+
 ## [2026-08-01] - v1.2.0: Armature import, and pole vectors that land where knees point
 
 - **Turn an Armature export into a Fabricator rig.** The new Armature button on

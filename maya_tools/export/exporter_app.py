@@ -22,14 +22,18 @@ from maya_tools.export import export_core, static_mesh, skeletal_mesh
 # One-button dispatcher
 # ─────────────────────────────────────────────────────────────────────────────
 
-def export_one_button(*, engine_up_axis_override: str = '') -> str:
-    """Dispatch based on viewport selection. Returns the FBX path written.
+def export_one_button(*, engine_up_axis_override: str = '',
+                      format_override: str = '') -> str:
+    """Dispatch based on viewport selection. Returns the path written.
 
     Output dir: the scene's saved Output Dir override wins, then the
     project-config auto path. No project needed — see _resolve_out_dir.
 
     engine_up_axis_override: '' follows the project config ('y' when no
     config); 'y'/'z' forces the skeletal bone-space target (Export Options).
+
+    format_override: '' or 'fbx' for FBX; 'usd' writes the Armature/Unreal
+    delivery USD (skeletal only — static entries always export FBX).
     """
     sel = cmds.ls(sl=True, long=False) or []
     if not sel:
@@ -52,12 +56,15 @@ def export_one_button(*, engine_up_axis_override: str = '') -> str:
     if joints:
         if not meshes:
             raise RuntimeError("Skeletal export needs at least one mesh selected alongside the joint(s).")
-        out_name = f'{prefixes.get("skeletal_mesh", "SK_")}{base}.fbx'
+        fmt = 'usd' if format_override == 'usd' else 'fbx'
+        ext = 'usd' if fmt == 'usd' else 'fbx'
+        out_name = f'{prefixes.get("skeletal_mesh", "SK_")}{base}.{ext}'
         preset   = export_core.fbx_preset(config, export_core.TYPE_SKELETAL)
         out_path = _ensure_dir(out_dir / out_name)
         axis = export_core.engine_up_axis(config, engine_up_axis_override)
         skeletal_mesh.export_skeletal(joints, meshes, str(out_path), preset,
-                                      engine_up_axis=axis)
+                                      engine_up_axis=axis, format=fmt,
+                                      character_name=base)
     else:
         if not meshes:
             raise RuntimeError("Selection contains no meshes or joints.")
@@ -101,8 +108,9 @@ def _resolve_out_dir(scene_path: str, config: dict | None, *,
 # ─────────────────────────────────────────────────────────────────────────────
 
 def export_entry(entry_node: str, *, dest_override: str = '',
-                 engine_up_axis_override: str = '') -> str:
-    """Export a single persisted entry. Returns the FBX path written.
+                 engine_up_axis_override: str = '',
+                 format_override: str = '') -> str:
+    """Export a single persisted entry. Returns the path written.
 
     dest_override: UI-level output directory. When non-empty, wins over the
     per-entry dest_override, the scene's saved Output Dir, and the project
@@ -111,6 +119,9 @@ def export_entry(entry_node: str, *, dest_override: str = '',
 
     engine_up_axis_override: '' follows the project config ('y' when no
     config); 'y'/'z' forces the skeletal bone-space target (Export Options).
+
+    format_override: 'usd' writes skeletal entries as the Armature/Unreal
+    delivery USD; static entries always export FBX regardless.
     """
     entry = export_core.get_entry_data(entry_node)
     scene_path = cmds.file(q=True, sn=True)
@@ -126,20 +137,25 @@ def export_entry(entry_node: str, *, dest_override: str = '',
     if blocks:
         raise RuntimeError(f'{entry["name"]}: ' + '; '.join(blocks))
 
+    skeletal = entry['type'] == export_core.TYPE_SKELETAL
+    fmt = 'usd' if (skeletal and format_override == 'usd') else 'fbx'
+    ext = 'usd' if fmt == 'usd' else 'fbx'
+
     out_dir = _resolve_out_dir(scene_path, config,
                                dest_override=dest_override,
                                entry_override=entry['dest_override'])
-    out_path = _ensure_dir(out_dir / f'{entry["prefix"]}{entry["name"]}.fbx')
+    out_path = _ensure_dir(out_dir / f'{entry["prefix"]}{entry["name"]}.{ext}')
 
     preset = export_core.fbx_preset(config, entry['type'])
     nodes  = entry['nodes']
 
-    if entry['type'] == export_core.TYPE_SKELETAL:
+    if skeletal:
         joints = [n for n in nodes if cmds.nodeType(n) == 'joint']
         meshes = [n for n in nodes if export_core.is_mesh_or_group(n)]
         axis = export_core.engine_up_axis(config, engine_up_axis_override)
         skeletal_mesh.export_skeletal(joints, meshes, str(out_path), preset,
-                                      engine_up_axis=axis)
+                                      engine_up_axis=axis, format=fmt,
+                                      character_name=entry['name'])
     else:
         meshes = [n for n in nodes if export_core.is_mesh_or_group(n)]
         static_mesh.export_static(meshes, str(out_path), preset)
@@ -150,8 +166,9 @@ def export_entry(entry_node: str, *, dest_override: str = '',
 
 def export_all(*, dest_override: str = '',
                engine_up_axis_override: str = '',
+               format_override: str = '',
                progress_cb=None) -> list[str]:
-    """Export every enabled entry. Returns list of FBX paths written.
+    """Export every enabled entry. Returns list of paths written.
 
     Overrides forwarded to export_entry — see that function for resolution.
 
@@ -164,12 +181,14 @@ def export_all(*, dest_override: str = '',
     return export_selected_entries(
         enabled, dest_override=dest_override,
         engine_up_axis_override=engine_up_axis_override,
+        format_override=format_override,
         progress_cb=progress_cb)
 
 
 def export_selected_entries(entry_nodes: list[str], *,
                             dest_override: str = '',
                             engine_up_axis_override: str = '',
+                            format_override: str = '',
                             progress_cb=None) -> list[str]:
     """Export the given entry nodes (regardless of enabled flag).
 
@@ -192,7 +211,8 @@ def export_selected_entries(entry_nodes: list[str], *,
         try:
             written.append(export_entry(
                 node, dest_override=dest_override,
-                engine_up_axis_override=engine_up_axis_override))
+                engine_up_axis_override=engine_up_axis_override,
+                format_override=format_override))
         except Exception as exc:
             cmds.warning(f'[Exporter] Skipped {data.get("name", node)}: {exc}')
     return written

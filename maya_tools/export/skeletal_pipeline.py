@@ -25,7 +25,8 @@ from maya_tools.export import anim_pipeline
 
 
 def run_export(joints: list, meshes: list, out_path: str,
-               fbx_preset: dict, engine_up_axis: str = 'y') -> str:
+               fbx_preset: dict, engine_up_axis: str = 'y',
+               format: str = 'fbx', character_name: str = '') -> str:
     """Execute the rig export in a mayapy subprocess.
 
     Caller is responsible for:
@@ -34,9 +35,14 @@ def run_export(joints: list, meshes: list, out_path: str,
         in-memory state). skeletal_mesh._export_ks_subprocess force-saves.
 
     engine_up_axis: resolved 'y'/'z' (see export_core.engine_up_axis); 'z'
-    folds the Z-up engine conversion into the root joint in the subprocess.
+    folds the Z-up engine conversion into the root joint in the subprocess
+    (FBX only — the USD stage's upAxis metadata is the single axis mechanism).
 
-    Returns the FBX path written. Raises RuntimeError if the scene is
+    format: 'fbx' (default) or 'usd' — the Armature/Unreal delivery USD.
+    character_name names the USD's root prim; '' falls back to the rig label
+    then the scene stem inside the runner.
+
+    Returns the path written. Raises RuntimeError if the scene is
     unsaved/dirty or the subprocess fails.
     """
     scene = cmds.file(q=True, sn=True)
@@ -61,6 +67,8 @@ def run_export(joints: list, meshes: list, out_path: str,
         'out_path': out_path,
         'fbx_preset': fbx_preset,
         'engine_up_axis': engine_up_axis,
+        'format': format,
+        'character_name': character_name,
         'repo_python_root': repo_python_root,
     })
 
@@ -85,7 +93,7 @@ def run_export(joints: list, meshes: list, out_path: str,
 
     if not os.path.isfile(out_path):
         raise RuntimeError(
-            f'mayapy reported success but FBX is missing: {out_path}'
+            f'mayapy reported success but the export is missing: {out_path}'
         )
 
     return out_path

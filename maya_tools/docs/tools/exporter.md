@@ -1,6 +1,6 @@
 ---
 title: Rig & Animation Exporter
-summary: Exports static and skeletal FBX meshes and batches of animation clips from Maya to the Engine, using a per-rig binding network to decide exactly what ships.
+summary: Exports static and skeletal meshes (FBX, or a skeletal USD delivery for Armature and Unreal) and batches of animation clips from Maya to the Engine, using a per-rig binding network to decide exactly what ships.
 category: export
 gif: ../media/exporter.gif
 video:
@@ -26,6 +26,8 @@ Bridge hosts both exporters as one popover ("Export", `EXP` glyph) with **MODEL*
 - **Anim Exporter** (anim exporter, ANIM tab or shelf "Anim Export"): the same Output Dir / Fix Paths pattern, a **+ Add Clip from Range** / **Duplicate Selected** / **Delete Selected** row, a clip table (enabled, PREFIX, RIG, CLIP NAME, START, END, detail), a gear menu with "Cleanup Stale Bindings", and **Export Checked** / **Export Selected** / **Export All**, each driving an "EXPORTING CLIP i / n" progress dialog. The per-clip detail dialog sets Clip Name, Output Kind (Gameplay/Cinematic), the assigned Rig ("Set Rig" from a live-binding dropdown, "Clear", or "Update Rig from Selection"), the frame range (with "= cur" buttons and "Use Timeline Range"), and a Dest Override.
 
 Skeletal (SK_) export scrubs to frame 0 — the default T-pose (Adrian authors raw range-of-motion anims starting on frame 1, so frame 0 stays the rest pose), so a rig file carrying a ROM still exports its rest. On a Fabricator (KS) rig the export runs in a throwaway `mayapy` subprocess (`skeletal_pipeline` / `skeletal_export_runner`): it opens the saved scene, disconnects skins, breaks the Armature and orients the joints to the game contract, strips to joints + mesh, resets every skinCluster's bind to the final pose (`reset_all_binds_to_pose` — a full disconnect+reconnect, so a cluster left live can't ride a stale bind into the FBX as the twist-joint candy-wrapper), writes the FBX, and exits — the live scene is never touched. On a hand-built/legacy rig it does a small in-scene surgery (delete constraints + cut keys on the joint chain) inside an undo chunk and undoes it after, leaving the scene as it was. Every path writes/refreshes the rig's `FAB_RigBinding` node.
+
+**USD format** (Export Options > Format > "USD (Armature, Unreal)"): skeletal entries write one `SK_<name>.usd` UsdSkel delivery file instead of an FBX — mesh, skeleton, weights (top-4, normalized), and UsdPreviewSurface materials with textures copied to a `textures/` folder beside the file. One file serves both destinations: Armature ingests it (a Fabricator rig also embeds its module layout and blueprint in the file, so the rig arrives in Armature as named modules with working steppers, not a flat pile of joints), and Unreal's USD importer reads the same file. Static entries always export FBX regardless of the option. The Engine Up Axis option does not apply to USD: the stage carries `upAxis` metadata and consumers convert on import, so the root bone ships at identity always. USD export always runs in the throwaway `mayapy` subprocess (even for non-Fabricator rigs) and verifies its own output before shipping it — the skeleton, weights, embeds and root frame are re-read from the written bytes, and a file failing any check is deleted, never shipped. A rig whose root frame is not identity (Fabricator-native rigs carry a -90 X on the root) is normalized world-preservingly during export; the character does not move.
 
 Animation export runs each clip through a `mayapy` subprocess (`anim_export_runner.py`) in this fixed order: transfer root motion if enabled (currently a no-op, see Gotchas) -> bake R+T+S on the binding's joints -> import all scene references -> delete the rig's `nulls_grp`/`controls_grp` -> unparent the root joint to world -> FBX-export the resolved joints. The animation FBX preset (`fbx_presets.animation` in the project config, or the built-in default when the scene is outside any project) is applied inside that subprocess.
 
@@ -68,6 +70,10 @@ Hotkey: **Alt+Shift+E**, `export_one_button`: "FBX export selected (skeletal if 
 
 **"mayapy export failed (returncode=...)" with STDOUT/STDERR in the message.** - Read the `[runner]` lines in the error for the failing pipeline step (bake, reference import, group deletion, FBX write). The interactive scene itself is untouched; only the subprocess failed.
 
-**"mayapy reported success but FBX is missing."** - The subprocess exited cleanly but the target file never appeared on disk. Check that the Output Dir's drive exists and is writable.
+**"mayapy reported success but the export is missing."** - The subprocess exited cleanly but the target file never appeared on disk. Check that the Output Dir's drive exists and is writable.
+
+**"USD export failed verification (nothing shipped): ..."** - The written file failed one of the export's own checks (each listed by name in the message: weights, joint names, root frame, embeds). The file was deleted rather than shipped. Fix the named problem — most commonly duplicate joint short names across branches (rename one) — and re-export.
+
+**"USD export: the root joint sits at [...], not the origin."** - The contract requires the root joint at the world origin. Move the rig to the origin (or zero the root's translation) and re-export.
 
 **A clip's export prompt is answered "Cancel".** - That clip (and any queued after it in the same batch) is skipped and logged as cancelled, not treated as a failure.

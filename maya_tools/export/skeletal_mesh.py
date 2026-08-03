@@ -25,8 +25,10 @@ from maya_tools.export import export_core
 
 def export_skeletal(joints: list[str], meshes: list[str],
                     out_path: str, fbx_preset: dict,
-                    engine_up_axis: str = 'y') -> str:
-    """Export joints + skinned meshes to a single FBX.
+                    engine_up_axis: str = 'y',
+                    format: str = 'fbx',
+                    character_name: str = '') -> str:
+    """Export joints + skinned meshes to a single FBX or delivery USD.
 
     KS rigs go through the throwaway subprocess (never touches the live scene);
     non-KS rigs use the small in-scene, undo-restored path. The rig is exported
@@ -37,7 +39,13 @@ def export_skeletal(joints: list[str], meshes: list[str],
     frame so the engine's import lands the root bone at identity (see
     export_core.orient_root_for_z_up_engine). Resolve via
     export_core.engine_up_axis(config, override) — callers pass the
-    resolved value, not the raw config."""
+    resolved value, not the raw config. FBX only: the USD stage's upAxis
+    metadata is the single axis mechanism.
+
+    format='usd' writes the Armature/Unreal delivery USD. ALWAYS routed
+    through the subprocess path, registry or not — the runner no-ops the
+    orient for registry-less scenes and the USD post-pass needs the pxr
+    environment the subprocess guarantees."""
     _write_rig_binding(joints, meshes)
     if not joints:
         raise RuntimeError("export_skeletal called with no joints.")
@@ -48,9 +56,10 @@ def export_skeletal(joints: list[str], meshes: list[str],
     if missing:
         raise RuntimeError(f"Skeletal export: missing nodes: {', '.join(missing)}")
 
-    if _ks_rig_present():
+    if format == 'usd' or _ks_rig_present():
         _export_ks_subprocess(joints, meshes, out_path, fbx_preset,
-                              engine_up_axis)
+                              engine_up_axis, format=format,
+                              character_name=character_name)
     else:
         _export_legacy_inscene(joints, meshes, out_path, fbx_preset,
                                engine_up_axis)
@@ -72,7 +81,8 @@ def _ks_rig_present() -> bool:
 
 
 def _export_ks_subprocess(joints, meshes, out_path, fbx_preset,
-                          engine_up_axis='y'):
+                          engine_up_axis='y', format='fbx',
+                          character_name=''):
     """KS rig: export in a throwaway mayapy subprocess.
 
     The subprocess opens the SAVED scene, disconnects skins, breaks the
@@ -95,7 +105,9 @@ def _export_ks_subprocess(joints, meshes, out_path, fbx_preset,
 
     from maya_tools.export import skeletal_pipeline
     skeletal_pipeline.run_export(joints, meshes, out_path, fbx_preset,
-                                 engine_up_axis=engine_up_axis)
+                                 engine_up_axis=engine_up_axis,
+                                 format=format,
+                                 character_name=character_name)
 
 
 def _export_legacy_inscene(joints, meshes, out_path, fbx_preset,

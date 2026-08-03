@@ -389,6 +389,19 @@ class ExporterWindow(QtWidgets.QDialog):
             'project config (engine_up_axis in export_mapping.json).')
         opts_form.addRow(mindmeld_style.field_label('Engine Up Axis'),
                          self.engine_axis_combo)
+        self.format_combo = QtWidgets.QComboBox()
+        # itemData: '' = FBX (the default); 'usd' = the delivery USD
+        self.format_combo.addItem('FBX (default)', '')
+        self.format_combo.addItem('USD (Armature, Unreal)', 'usd')
+        self.format_combo.setToolTip(
+            'Skeletal export format. USD writes one UsdSkel delivery file '
+            '(mesh, skeleton, weights, materials) that Armature ingests and '
+            'Unreal imports — a Fabricator rig also embeds its module data '
+            'for Armature. Static entries always export FBX. The Engine Up '
+            'Axis option does not apply to USD: the stage carries its own '
+            'up-axis metadata and consumers convert on import.')
+        opts_form.addRow(mindmeld_style.field_label('Format'),
+                         self.format_combo)
         opts_body = QtWidgets.QVBoxLayout()
         opts_body.setContentsMargins(0, 0, 0, 0)
         opts_body.addLayout(opts_form)
@@ -707,6 +720,10 @@ class ExporterWindow(QtWidgets.QDialog):
         """The Export Options pick: '' = follow the project config."""
         return self.engine_axis_combo.currentData() or ''
 
+    def _format_override(self) -> str:
+        """The Export Options format pick: '' = FBX, 'usd' = delivery USD."""
+        return self.format_combo.currentData() or ''
+
     def _on_export_progress(self, index: int, total: int, name: str) -> None:
         """exporter_app progress hook — ticks the coach card per entry.
         Called before each entry exports, so the bar shows work done."""
@@ -725,6 +742,7 @@ class ExporterWindow(QtWidgets.QDialog):
                 written = exporter_app.export_all(
                     dest_override=self.output_dir_edit.text().strip(),
                     engine_up_axis_override=self._engine_up_axis_override(),
+                    format_override=self._format_override(),
                     progress_cb=self._on_export_progress,
                 )
             else:
@@ -732,6 +750,7 @@ class ExporterWindow(QtWidgets.QDialog):
                     entry_nodes,
                     dest_override=self.output_dir_edit.text().strip(),
                     engine_up_axis_override=self._engine_up_axis_override(),
+                    format_override=self._format_override(),
                     progress_cb=self._on_export_progress,
                 )
             ok = True

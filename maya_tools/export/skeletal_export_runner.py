@@ -54,9 +54,14 @@ def main() -> None:
     print(f'[runner] opening scene: {payload["scene_path"]}')
     cmds.file(payload['scene_path'], open=True, force=True)
 
+    if payload.get('format', 'fbx') == 'usd':
+        cmds.loadPlugin('mayaUsdPlugin', quiet=True)
+
     _prepare_and_export(payload['joints'], payload['meshes'],
                         payload['out_path'], payload['fbx_preset'],
-                        engine_up_axis=payload.get('engine_up_axis', 'y'))
+                        engine_up_axis=payload.get('engine_up_axis', 'y'),
+                        format=payload.get('format', 'fbx'),
+                        character_name=payload.get('character_name', ''))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -64,14 +69,22 @@ def main() -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _prepare_and_export(joints: list, meshes: list, out_path: str,
-                        fbx_preset: dict, engine_up_axis: str = 'y') -> None:
+                        fbx_preset: dict, engine_up_axis: str = 'y',
+                        format: str = 'fbx',
+                        character_name: str = '') -> None:
     """Disconnect skins, break the Armature + orient joints, strip to
-    joints + mesh, reconnect skins at the final pose, FBX-export. No restore —
+    joints + mesh, reconnect skins at the final pose, write out. No restore —
     the caller's scene is a throwaway copy.
 
     engine_up_axis='z' folds the Z-up engine (Unreal) conversion into the
     root joint's frame after the strip and BEFORE the bind reset, so the
-    rebind derives every bindPreMatrix at the converted pose."""
+    rebind derives every bindPreMatrix at the converted pose. FBX only:
+    a USD stage's upAxis metadata is the single axis mechanism (the ruled
+    Armature contract) and baking -90 on top of it composes to -180.
+
+    format='usd' writes the Armature/Unreal delivery USD via usd_delivery
+    instead of FBX. Embed data (component records, aimer states) is captured
+    BEFORE the Armature teardown destroys the aimers."""
     import maya.cmds as cmds
     import maya.mel as mel
     from maya_tools.skinning import skin_connect_app
@@ -108,8 +121,11 @@ def _prepare_and_export(joints: list, meshes: list, out_path: str,
     print(f'[runner] disconnected {len(detached)} skinned mesh(es)')
 
     # 2. Break the Armature + orient the joints to the game contract (the same
-    #    aimer bake + jointOrient collapse the Build runs).
-    _orient_to_game_contract()
+    #    aimer bake + jointOrient collapse the Build runs). The USD embeds
+    #    need the aimers and component records ALIVE, so their capture is
+    #    threaded between the unbuild and the teardown.
+    early = _orient_to_game_contract(
+        capture_for_usd=(format == 'usd'))
 
     joints = _resolve(joints) or _registry_root_as_list()
     if not joints:
@@ -136,7 +152,7 @@ def _prepare_and_export(joints: list, meshes: list, out_path: str,
     #     identity, matching engine-authored skeletons (SKM_Manny) so
     #     engine animations play unpitched. Before step 4 on purpose: the
     #     bind reset below derives every bindPreMatrix at this final pose.
-    if engine_up_axis == 'z':
+    if engine_up_axis == 'z' and format != 'usd':
         print('[runner] engine up axis = z — folding -90 deg world-X into '
               'the root frame')
         export_core.orient_root_for_z_up_engine(root)
@@ -157,36 +173,52 @@ def _prepare_and_export(joints: list, meshes: list, out_path: str,
         cmds.warning(f'[runner] bind still inconsistent after reset (worst '
                      f'delta {worst:.4f}) — the FBX may candy-wrap.')
 
-    # 5. FBX export the joints + meshes.
+    # 5. Write out: FBX (selected export) or the USD delivery.
     joints = _resolve(joints)
     meshes = _resolve(meshes)
-    export_core.apply_fbx_preset(fbx_preset)
-    cmds.select(joints + meshes, replace=True)
-    mel.eval('FBXExport -f "{}" -s;'.format(out_path.replace('\\', '/')))
+    if format == 'usd':
+        from maya_tools.export import usd_delivery
+        usd_delivery.export_delivery(joints[0], meshes, out_path,
+                                     character_name=character_name,
+                                     early=early, log=print)
+    else:
+        export_core.apply_fbx_preset(fbx_preset)
+        cmds.select(joints + meshes, replace=True)
+        mel.eval('FBXExport -f "{}" -s;'.format(out_path.replace('\\', '/')))
     print(f'[runner] exported: {out_path}')
 
 
-def _orient_to_game_contract() -> None:
+def _orient_to_game_contract(capture_for_usd: bool = False):
     """Delete the Armature and bake the joints to the export orientation
     contract, exactly as the Build's teardown does. A modules-built scene is
     unbuilt to the edit state first (so the aimers exist to bake). A non-KS
-    scene (no registry) is exported as-is."""
+    scene (no registry) is exported as-is.
+
+    capture_for_usd=True snapshots the USD embed data (component records +
+    aimer states) at the edit state, after the unbuild and BEFORE the teardown
+    deletes the aimers. Returns that capture (or None)."""
     import maya.cmds as cmds
     from maya_tools.rigging.fabricator import armature, fs_app, nodes
 
     if not nodes.get_registry():
         print('[runner] no fab registry — exporting joints as-is (no orient)')
-        return
+        return None
 
     if cmds.objExists('rig_grp') and not armature.armature_exists():
         print('[runner] modules built — unbuilding to the edit state first')
         fs_app.unbuild_modules()
+
+    early = None
+    if capture_for_usd:
+        from maya_tools.export import usd_manifest
+        early = usd_manifest.capture_early(log=print)
 
     print('[runner] deleting Armature + orienting joints to the game contract')
     # force_missing_aimers: a hand-deleted aimer must not abort an export;
     # that joint keeps its current orientation. The throwaway scene means we
     # never rebuild the Armature after.
     fs_app._armature_teardown_for_build(force_missing_aimers=True)
+    return early
 
 
 # ─────────────────────────────────────────────────────────────────────────────
