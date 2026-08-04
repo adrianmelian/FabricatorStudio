@@ -213,6 +213,7 @@ def run(config_name: str | None = None) -> None:
     _install_status_line_button()
     _restore_toolbar()
     _maybe_first_run_onboarding()
+    _maybe_check_updates()
 
     om.MGlobal.displayInfo(f'[FS] Project config "{config.get("name", config_name)}" applied.')
 
@@ -259,6 +260,19 @@ def _maybe_first_run_onboarding() -> None:
         om.MGlobal.displayWarning(
             f'[FS] First-run onboarding skipped: {exc}'
         )
+
+
+def _maybe_check_updates() -> None:
+    """Quiet startup update check (Adrian, 2026-08-04). Batch-safe,
+    pref-gated (Settings > UPDATES), runs its network fetch on a worker
+    thread and fades one toast when a newer toolset exists. Silent on
+    every failure — offline is a normal state. Self-disables on linked
+    and source installs; see updater_core.detect_install."""
+    try:
+        from maya_tools.framework.updater import updater_ui
+        updater_ui.maybe_check_on_startup()
+    except Exception as exc:
+        om.MGlobal.displayWarning(f'[FS] Update check skipped: {exc}')
 
 
 def _register_anim_marking_menu() -> None:

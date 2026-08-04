@@ -7,6 +7,17 @@ Format: `## [date] - short title` then bullet points. Keep entries brief.
 
 ---
 
+## [Unreleased]
+
+- **The toolset updates itself now.** Maya checks quietly at startup (background
+  thread, silent offline) and shows one toast when a new version exists;
+  Settings gains an Updates section with the toggle, Check Now, and a one-click
+  update window. The download's published hash is verified before anything is
+  touched, the current install is backed up and auto-restored on failure,
+  project configs and installed packs survive untouched, and the restart
+  prompt is never forced. Linked and development installs are detected and
+  left alone.
+
 ## [2026-08-03] - v1.3.0: USD export
 
 - **USD export: one file for Armature and Unreal.** The Rig Exporter's Export

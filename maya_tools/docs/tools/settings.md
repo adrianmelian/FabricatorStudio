@@ -45,6 +45,22 @@ menu, the shelves, the hotkey set, and the Ctrl+Alt+RMB animation marking
 menu. Everything is on by default. Turning one on builds it immediately;
 turning one off takes effect the next time Maya starts.
 
+## Updates
+
+The toolset checks for a new version when Maya starts (quietly, on a
+background thread, silent when offline) and shows one toast when an update
+exists. Check Now does the same on demand and opens the update window:
+one click downloads the release, verifies its published hash before
+touching anything, backs up the current install, installs, and asks for a
+Maya restart — never forced, and the running session keeps the old version
+until you restart. Your project configs and any installed add-on pack
+survive the update untouched; a failed install restores the previous
+version automatically. The startup check can be turned off here.
+
+Installs that are linked to a shared or development location manage their
+own updates; the updater detects those and stays out of the way (the
+reason appears in this section).
+
 ## For teams
 
 A new teammate's whole setup is this window: point Shared Configs Root at

@@ -79,6 +79,7 @@ class SettingsUI(QtWidgets.QDialog):
         main.addWidget(mindmeld_style.horizontal_rule())
 
         main.addWidget(self._build_integration_panel())
+        main.addWidget(self._build_updates_panel())
 
         self.log_section = CollapsibleSection("LOG")
         self.logger = LoggerWidget()
@@ -104,6 +105,23 @@ class SettingsUI(QtWidgets.QDialog):
         section.set_expanded(True)
         return section
 
+    def _build_updates_panel(self):
+        section = CollapsibleSection("UPDATES")
+        layout = QtWidgets.QVBoxLayout()
+        self.update_startup_check = QtWidgets.QCheckBox(
+            "Check for updates when Maya starts")
+        layout.addWidget(self.update_startup_check)
+        row = QtWidgets.QHBoxLayout()
+        self.update_check_btn = mindmeld_style.button("Check Now")
+        row.addWidget(self.update_check_btn)
+        self.update_status = mindmeld_style.helper_label("")
+        self.update_status.setWordWrap(True)
+        row.addWidget(self.update_status, 1)
+        layout.addLayout(row)
+        section.set_body_layout(layout)
+        section.set_expanded(True)
+        return section
+
     # ─────────────────────────────────────────
     # Signals
     # ─────────────────────────────────────────
@@ -112,6 +130,9 @@ class SettingsUI(QtWidgets.QDialog):
         for key, cb in self.integration_checks.items():
             cb.toggled.connect(
                 lambda checked, k=key: self._on_integration_toggled(k, checked))
+        self.update_startup_check.toggled.connect(
+            self._on_update_startup_toggled)
+        self.update_check_btn.clicked.connect(self._on_check_updates)
 
     # ─────────────────────────────────────────
     # Populate / refresh
@@ -121,8 +142,21 @@ class SettingsUI(QtWidgets.QDialog):
         self._populating = True
         try:
             self._refresh_integration()
+            self._refresh_updates()
         finally:
             self._populating = False
+
+    def _refresh_updates(self):
+        from maya_tools.framework.updater import updater_core
+        self.update_startup_check.setChecked(
+            updater_core.check_on_startup_enabled())
+        install = updater_core.detect_install()
+        if install["ok"]:
+            self.update_status.setText(
+                "Installed: Fabricator %s" % install["version"])
+        else:
+            self.update_status.setText(install["reason"])
+            self.update_check_btn.setEnabled(False)
 
     def _refresh_integration(self):
         prefs = settings_app.integration_prefs()
@@ -149,6 +183,43 @@ class SettingsUI(QtWidgets.QDialog):
                 self.logger.info(f"{label}: on. Applies at next Maya start.")
         else:
             self.logger.info(f"{label}: off. Takes effect next Maya start.")
+
+    # ─────────────────────────────────────────
+    # Updates
+    # ─────────────────────────────────────────
+
+    def _on_update_startup_toggled(self, checked):
+        if self._populating:
+            return
+        try:
+            from maya_tools.framework.updater import updater_core
+            updater_core.set_check_on_startup(checked)
+        except Exception as exc:
+            self._handle_error(exc, "Could not save the setting")
+            return
+        self.logger.info("Startup update check: %s."
+                         % ("on" if checked else "off"))
+
+    def _on_check_updates(self):
+        """Synchronous on purpose: the fetch timeout is 3 seconds, bounded,
+        and the user just asked for it — a settings window may hold its
+        breath that long. The STARTUP path is the one that must never
+        block, and it runs threaded (updater_ui)."""
+        from maya_tools.framework.updater import updater_core
+        self.update_status.setText("Checking...")
+        QtWidgets.QApplication.processEvents()
+        try:
+            offer, status = updater_core.check_for_update()
+        except Exception as exc:
+            self._handle_error(exc, "Update check failed")
+            self.update_status.setText("Update check failed. See the log.")
+            return
+        self.update_status.setText(status)
+        self.logger.info(status)
+        if offer is not None:
+            from maya_tools.framework.updater import updater_ui
+            self._update_dialog = updater_ui.UpdateDialog(
+                offer, parent=self).show()
 
     def _apply_integration_live(self, key):
         """Best-effort immediate build on enable; False = next-start.
