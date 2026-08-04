@@ -43,6 +43,18 @@ import traceback
 def main() -> None:
     payload = json.loads(sys.argv[1])
     sys.path.insert(0, payload['repo_python_root'])
+    # The child skips userSetup, so it must provide EVERYTHING userSetup's
+    # FABRICATOR block provided — including the vendored dependencies
+    # (maya_tools/_vendor carries PyYAML; blueprint io imports it the moment
+    # fs_app loads). Field-crashed 2026-08-04 on a clean install: dev
+    # machines mask this with a pip-installed yaml in user site-packages,
+    # a clean machine dies with ModuleNotFoundError mid-export. Same
+    # insert-order as userSetup: vendor ends up ahead of the repo root.
+    import os as _os
+    _vendor = _os.path.join(payload['repo_python_root'], 'maya_tools',
+                            '_vendor')
+    if _os.path.isdir(_vendor) and _vendor not in sys.path:
+        sys.path.insert(0, _vendor)
 
     print('[runner] initializing Maya standalone')
     import maya.standalone
