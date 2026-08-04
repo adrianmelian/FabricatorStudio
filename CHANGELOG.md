@@ -7,6 +7,14 @@ Format: `## [date] - short title` then bullet points. Keep entries brief.
 
 ---
 
+## [2026-08-04] - v1.4.1: Export subprocess fix for clean installs
+
+- **Skeletal export works on clean installs again.** The export's background
+  process could not find the toolset's bundled YAML library on a machine
+  without a separately installed copy, and the export died mid-run (USD and
+  FBX both). The process now carries its own library path. Found by a user
+  the same day, fixed the same day.
+
 ## [2026-08-04] - v1.4.0: The toolset updates itself, and USD export without skinning
 
 - **USD export without skinning.** A model plus skeleton with no skinCluster
