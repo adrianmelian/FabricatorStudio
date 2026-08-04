@@ -479,7 +479,6 @@ def _verify(path, name, blueprint_json, log=print):
             problems.append('root %s transform is not identity at origin'
                             % label)
 
-    binding_ok = False
     skel_root = UsdSkel.Root(stage.GetPrimAtPath('/' + name))
     cache = UsdSkel.Cache()
     cache.Populate(skel_root, Usd.TraverseInstanceProxies())
@@ -490,18 +489,29 @@ def _verify(path, name, blueprint_json, log=print):
     meshes = [p for p in stage.Traverse() if p.GetTypeName() == 'Mesh']
     if not meshes:
         problems.append('no Mesh prims in the export')
-    if n_targets < len(meshes):
-        problems.append('ComputeSkelBindings resolves %d of %d mesh(es)'
-                        % (n_targets, len(meshes)))
+
+    # A mesh is either FULLY skinned (every check below) or carries no
+    # binding at all — the deliberate model-plus-skeleton delivery, skinned
+    # in Armature (Jarrod's workflow, 2026-08-04). Anything in between is a
+    # damaged file.
+    skinned_meshes = [p for p in meshes
+                     if p.GetAttribute('primvars:skel:jointIndices')
+                     and p.GetAttribute('primvars:skel:jointIndices').Get()
+                     is not None]
+    unskinned = len(meshes) - len(skinned_meshes)
+    if n_targets < len(skinned_meshes):
+        problems.append('ComputeSkelBindings resolves %d of %d skinned '
+                        'mesh(es)' % (n_targets, len(skinned_meshes)))
 
     from pxr import UsdGeom as _ug
-    for p in meshes:
+    for p in skinned_meshes:
         mesh = _ug.Mesh(p)
         pts = mesh.GetPointsAttr().Get() or []
         ji = p.GetAttribute('primvars:skel:jointIndices')
         jw = p.GetAttribute('primvars:skel:jointWeights')
-        if not (ji and jw and ji.Get() is not None):
-            problems.append('%s: missing skinning primvars' % p.GetPath())
+        if not (jw and jw.Get() is not None):
+            problems.append('%s: jointIndices without jointWeights'
+                            % p.GetPath())
             continue
         es = ji.GetMetadata('elementSize') or 0
         idx = ji.Get()
@@ -567,5 +577,7 @@ def _verify(path, name, blueprint_json, log=print):
         raise UsdExportError(
             'USD export failed verification (nothing shipped):\n  - '
             + '\n  - '.join(problems))
-    log('[usd] verification: %d joints, %d mesh(es), all checks green'
-        % (len(joints), len(meshes)))
+    skin_note = ('' if not unskinned else
+                 ', %d unskinned (bind in Armature)' % unskinned)
+    log('[usd] verification: %d joints, %d mesh(es)%s, all checks green'
+        % (len(joints), len(meshes), skin_note))

@@ -9,6 +9,11 @@ Format: `## [date] - short title` then bullet points. Keep entries brief.
 
 ## [Unreleased]
 
+- **USD export without skinning.** A model plus skeleton with no skinCluster
+  now exports to USD cleanly (the log says so plainly), so a character can be
+  built and jointed in Maya and skinned in Armature. First field request,
+  same-day. The FBX path still requires a bound mesh, and a USD rig with
+  skinning exports exactly as before.
 - **The toolset updates itself now.** Maya checks quietly at startup (background
   thread, silent offline) and shows one toast when a new version exists;
   Settings gains an Updates section with the toggle, Check Now, and a one-click

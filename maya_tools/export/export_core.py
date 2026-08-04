@@ -801,7 +801,8 @@ def _safe_node_name(name: str) -> str:
 # Validation
 # ─────────────────────────────────────────────────────────────────────────────
 
-def validate_entry(entry_data: dict, config: dict | None) -> tuple[list[str], list[str]]:
+def validate_entry(entry_data: dict, config: dict | None,
+                   format: str = 'fbx') -> tuple[list[str], list[str]]:
     """Run validation rules. Returns (blocks, warnings).
 
     Blocks abort the export. Warnings are reported but the export still runs.
@@ -845,7 +846,17 @@ def validate_entry(entry_data: dict, config: dict | None) -> tuple[list[str], li
                                        fullPath=True) or []
                 )
             if not any(has_skin_cluster(m) for m in mesh_shapes):
-                blocks.append("Skeletal export: no mesh in selection has a skinCluster bound.")
+                # USD: a deliberate workflow, not a mistake — model + skeleton
+                # travel to Armature and the skinning happens THERE (first
+                # field request, Jarrod 2026-08-04). FBX keeps the block: an
+                # unskinned skeletal FBX in the engine pipeline is almost
+                # always an error.
+                if format == 'usd':
+                    warns.append(
+                        "No skinCluster bound — exporting model + skeleton "
+                        "without skinning (bind in Armature).")
+                else:
+                    blocks.append("Skeletal export: no mesh in selection has a skinCluster bound.")
 
     if scene and config:
         try:

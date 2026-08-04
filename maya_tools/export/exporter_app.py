@@ -130,16 +130,21 @@ def export_entry(entry_node: str, *, dest_override: str = '',
     if cmds.file(q=True, modified=True):
         cmds.warning("[Exporter] Scene has unsaved changes — exporting current in-memory state.")
 
+    entry_is_skeletal = entry['type'] == export_core.TYPE_SKELETAL
+    entry_fmt = 'usd' if (entry_is_skeletal and format_override == 'usd') \
+        else 'fbx'
+
     config = export_core.load_project_config_or_none(scene_path)
-    blocks, warns = export_core.validate_entry(entry, config)
+    blocks, warns = export_core.validate_entry(entry, config,
+                                               format=entry_fmt)
     for w in warns:
         cmds.warning(f'[Exporter] {entry["name"]}: {w}')
     if blocks:
         raise RuntimeError(f'{entry["name"]}: ' + '; '.join(blocks))
 
-    skeletal = entry['type'] == export_core.TYPE_SKELETAL
-    fmt = 'usd' if (skeletal and format_override == 'usd') else 'fbx'
+    fmt = entry_fmt
     ext = 'usd' if fmt == 'usd' else 'fbx'
+    skeletal = entry_is_skeletal
 
     out_dir = _resolve_out_dir(scene_path, config,
                                dest_override=dest_override,
