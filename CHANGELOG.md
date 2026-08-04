@@ -7,7 +7,7 @@ Format: `## [date] - short title` then bullet points. Keep entries brief.
 
 ---
 
-## [Unreleased]
+## [2026-08-03] - v1.3.0: USD export
 
 - **USD export: one file for Armature and Unreal.** The Rig Exporter's Export
   Options gains a Format choice: FBX (default) or USD. USD writes a single
@@ -19,6 +19,11 @@ Format: `## [date] - short title` then bullet points. Keep entries brief.
   shipping (root frame, weights, joint names, embeds) and refuses with the
   reason named rather than writing a plausible-looking corpse. Root frames
   are normalized to identity world-preservingly; the character never moves.
+- **Skeletal export subprocess hardened.** The throwaway export process no
+  longer runs userSetup (no toolbar/Qt load in batch — roughly ten seconds
+  faster per export, and it fixes a crash-at-exit that could fail a
+  completed export), and its module path no longer depends on userSetup
+  having rescued it.
 
 ## [2026-08-01] - v1.2.0: Armature import, and pole vectors that land where knees point
 
