@@ -72,6 +72,7 @@
     "framework/scene_cleanup",
     "framework/shelves",
     "framework/toolbar",
+    "framework/updater",
     "pipeline",
     "pipeline/rigged_model_updater",
     "rigging",
