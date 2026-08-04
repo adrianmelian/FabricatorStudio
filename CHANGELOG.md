@@ -7,7 +7,7 @@ Format: `## [date] - short title` then bullet points. Keep entries brief.
 
 ---
 
-## [Unreleased]
+## [2026-08-04] - v1.4.0: The toolset updates itself, and USD export without skinning
 
 - **USD export without skinning.** A model plus skeleton with no skinCluster
   now exports to USD cleanly (the log says so plainly), so a character can be
