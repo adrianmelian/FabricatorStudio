@@ -204,14 +204,31 @@ def coverage_bind(arm, meshes) -> int:
         obj.parent = arm
 
     # Force-cover the stragglers: a joint no vertex was nearest to.
+    # Each forced joint gets a vertex with a FREE influence slot: glTF
+    # carries at most 4 influences per vertex and Blender's exporter
+    # silently keeps the top 4, so on coarse geometry (mitten hands) a
+    # whole digit chain funnels onto one tip vertex, the 5th group
+    # vanishes on export, and trim_skeleton() prunes the joint (live
+    # failure 2026-07-24: both fingertips dropped, engine returned 78/80
+    # bones, umeyama crashed on the count mismatch).
     missed = [i for i in range(len(names)) if i not in covered]
     if missed:
         obj = meshes[0]
         verts = _mesh_world_verts(obj)
         vtree = cKDTree(verts)
+        used = {}
+        for v in obj.data.vertices:
+            n = sum(1 for gr in v.groups if gr.weight > 0.0)
+            if n:
+                used[v.index] = n
+        k = min(64, len(verts))
         for bi in missed:
-            _, vi = vtree.query(bone_pos[bi], k=1)
-            obj.vertex_groups[names[bi]].add([int(vi)], 1.0, 'REPLACE')
+            _, cand = vtree.query(bone_pos[bi], k=k)
+            cand = np.atleast_1d(cand)
+            vi = next((int(c) for c in cand if used.get(int(c), 0) < 4),
+                      int(cand[0]))
+            obj.vertex_groups[names[bi]].add([vi], 1.0, 'REPLACE')
+            used[vi] = used.get(vi, 0) + 1
         log('coverage', f'force-covered {len(missed)} joint(s) no vertex was '
                         f'nearest to')
 
@@ -295,12 +312,23 @@ def harvest_weights(pred_mesh, pred_arm, user_mesh, user_arm) -> dict:
     pred_names, pred_bones = _bone_positions(pred_arm)
     user_names, user_bones = _bone_positions(user_arm)
 
-    # Align the engine's rig onto ours, then match vertices in OUR frame.
-    s, R, t = umeyama(pred_bones, user_bones)
-    resid = float(np.abs(apply_similarity(pred_bones, s, R, t) - user_bones).mean())
-    log('align', f'umeyama residual {resid:.4f} (scale {s:.4f})')
-
+    # The engine can return FEWER bones than it was given (trim_skeleton
+    # prunes a joint whose influence got lost in the round trip). umeyama
+    # pairs by INDEX, so align on the position-matched subset instead and
+    # let a dropped joint simply receive no weights — a missing fingertip
+    # costs a warning line, never the whole solve.
     bone_map = map_predicted_bones(pred_names, pred_bones, user_names, user_bones)
+    user_pos = {n: p for n, p in zip(user_names, user_bones)}
+    matched_dst = np.array([user_pos[bone_map[n]] for n in pred_names])
+    if len(pred_names) != len(user_names):
+        dropped = sorted(set(user_names) - set(bone_map.values()))
+        log('align', f'engine returned {len(pred_names)}/{len(user_names)} '
+                     f'bone(s); no weights for: {", ".join(dropped)}')
+
+    # Align the engine's rig onto ours, then match vertices in OUR frame.
+    s, R, t = umeyama(pred_bones, matched_dst)
+    resid = float(np.abs(apply_similarity(pred_bones, s, R, t) - matched_dst).mean())
+    log('align', f'umeyama residual {resid:.4f} (scale {s:.4f})')
 
     pred_verts = apply_similarity(_mesh_world_verts(pred_mesh), s, R, t)
     user_verts = _mesh_world_verts(user_mesh)
@@ -615,14 +643,22 @@ def _engine_failure(proc, work: Path) -> str:
         pass
 
     if 'ConnectionResetError' in out or 'Connection aborted' in out:
+        # User-facing copy: INSTRUCT, never narrate our own debugging. The
+        # previous wording ("Reproduced on simple, unarticulated shapes — a
+        # plain crate does it every time") read as "broken everywhere" and a
+        # field user ran a crate as a control test off the back of it,
+        # concluding the tool was broken for their character too (support
+        # case 2026-08-08; rewrite proposed by the Armature lane, which
+        # vendors this file).
         return (
-            f"the engine's Blender helper crashed (exit {proc.returncode}).\n"
-            f"This is NOT a network problem, despite the connection error in "
-            f"the log: AutoSkin drives its Blender helper over a LOCAL socket, "
-            f"and that helper died mid-export.\n"
-            f"Reproduced on simple, unarticulated shapes — a plain crate does "
-            f"it every time. Skeleton generation targets characters, not "
-            f"props.{where}"
+            f"the engine could not process this mesh (its Blender helper "
+            f"crashed, exit {proc.returncode}).\n"
+            f"Skeleton generation is built for CHARACTERS — simple props and "
+            f"unarticulated shapes are outside what the engine can rig, and "
+            f"are the most common cause of this error.\n"
+            f"Despite any connection error in the log, this is not a network "
+            f"problem: the helper runs on a local socket and died mid-job.\n"
+            f"If this IS a character, send us the log below.{where}"
         )
 
     tail = '\n'.join(out.splitlines()[-25:]) if out else '(no output)'
