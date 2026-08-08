@@ -7,6 +7,21 @@ Format: `## [date] - short title` then bullet points. Keep entries brief.
 
 ---
 
+## [2026-08-08] - v1.4.2: AutoSkin count-mismatch fix, clearer errors
+
+- **AutoSkin no longer fails when the engine returns fewer joints than it was
+  given.** On twist-heavy skeletons the engine can prune joints whose influence
+  is lost in transit; Bind Skin then crashed with a matrix-dimension error
+  ("size 113 is different from 133"). Joint coverage is now preserved through
+  the round trip, and any joint the engine still drops simply receives no
+  weights, with the affected joints named in the log. Reported by a user
+  2026-08-08; the fix also hardens fingertip-heavy hands.
+- **The skeleton-generation error explains itself.** Running Generate Joints
+  on a simple prop (a crate, a barrel) now says plainly that skeleton
+  generation is built for characters, instead of reading like a bug report
+  about everything.
+- **The Armature toolbar button wears its intended icon.**
+
 ## [2026-08-04] - v1.4.1: Export subprocess fix for clean installs
 
 - **Skeletal export works on clean installs again.** The export's background
